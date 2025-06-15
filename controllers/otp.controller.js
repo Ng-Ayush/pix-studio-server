@@ -26,7 +26,7 @@ exports.sendOtp = async (req, res) => {
         res.send({ message: "OTP sent successfully!", otp, status: 200 });
     } catch (error) {
         console.error("Error sending OTP:", error);
-        res.status(500).send({ message: "Failed to send OTP", status: 500 });
+        res.status(500).send({ message: "Failed to send OTP", status: 500 ,otp });
     }
 };
 
