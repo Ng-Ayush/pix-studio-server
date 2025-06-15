@@ -26,7 +26,7 @@ app.use("/api/mystudio/invoice-items", require("./routes/invoiceItemsRoutes.js")
 app.use("/api/mystudio/invoices", require("./routes/invoices.route.js"));
 
 app.get("/", (req, res) => {
-    res.send("Hello World!");
+    res.send({data:[{name:"test"}]});
 })
 // app.use('/api/mystudio/files', require('./routes/file.routes.js'));
 
