@@ -15,6 +15,30 @@ exports.generateInvoice = async (req, res) => {
       `INSERT INTO invoices (invoice_number,invoice_date,due_date,party_id,status,total,balance_left,invoice_type,payment_type,payment_type_description,invoice_items,time,phone_number) 
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, value
     );
+
+    for (const item of JSON.parse(invoice_items)) {
+      const { id: id, booking_date, location } = item;
+
+      const updateFields = [];
+      const values = [];
+
+      if (booking_date) {
+        updateFields.push(`booking_date = ?`);
+        values.push(booking_date);
+      }
+
+      if (location) {
+        updateFields.push(`location = ?`);
+        values.push(location);
+      }
+
+      if (updateFields.length > 0) {
+        values.push(id); // WHERE id = ?
+        const query = `UPDATE invoice_items SET ${updateFields.join(', ')} WHERE id = ?`;
+        await pool.execute(query, values);
+      }
+    }
+
     res.send({ message: 'Invoice created', status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message, err: err });
@@ -36,8 +60,8 @@ exports.getInvoiceById = async (req, res) => {
   const { id } = req.params;
   try {
     const [rows] = await pool.execute('SELECT * FROM invoices WHERE id = ?', [id]);
-    if (rows.length === 0) return res.status(404).json({ message: 'Customer not found' });
-    res.json({ message: 'Customer found', data: rows[0], status: 200 });
+    if (rows.length === 0) return res.status(404).json({ message: 'Invoice not found' });
+    res.json({ message: 'Invoice found', data: rows[0], status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -46,12 +70,17 @@ exports.getInvoiceById = async (req, res) => {
 exports.getInvoiceDetailByInvoiceNumber = async (req, res) => {
   const { id } = req.params;
   try {
-    const query = `SELECT inv.*,invci.* FROM invoices inv JOIN invoice_items invci ON JSON_CONTAINS(inv.invoice_items, invci.id)  WHERE invoice_number = ?`
+    const query = `SELECT inv.*, invci.*,inv.id AS invoice_id 
+FROM invoices inv 
+JOIN invoice_items invci 
+  ON JSON_CONTAINS(inv.invoice_items, JSON_OBJECT('id', invci.id)) 
+WHERE invoice_number = ?`
     const [rows] = await pool.execute(query, [id]);
     if (rows.length === 0) return res.status(404).json({ message: 'Invoices not found' });
     const groupedInvoice = {
       invoice_number: rows[0].invoice_number,
       invoice_date: formatDate(rows[0].invoice_date),
+      invoice_id: rows[0].invoice_id,
       due_date: formatDate(rows[0].due_date),
       party_id: rows[0].party_id,
       status: rows[0].status,
@@ -64,7 +93,7 @@ exports.getInvoiceDetailByInvoiceNumber = async (req, res) => {
       description: rows[0].description,
       time: rows[0].time,
       invoice_items: rows.map(row => ({
-        id: row.item_id,
+        id: row.id,
         item_name: row.item_name,
         description: row.description,
         quantity: row.quantity,
@@ -72,7 +101,9 @@ exports.getInvoiceDetailByInvoiceNumber = async (req, res) => {
         purchase_price: row.purchase_price,
         item_code: row.item_code,
         item_category: row.item_category,
-        item_stock: row.item_stock
+        item_stock: row.item_stock,
+        location: row.location,
+        booking_date: row.booking_date
       }))
     };
     res.json({ message: 'Invoice found', data: groupedInvoice, status: 200 });
@@ -81,20 +112,47 @@ exports.getInvoiceDetailByInvoiceNumber = async (req, res) => {
   }
 };
 
-// UPDATE
+// UPDATE 
 exports.updateInvoice = async (req, res) => {
   const { id } = req.params;
-  const { item_name, item_category, description, item_code, sale_price, purchase_price, item_stock } = req.body;
+  const { invoice_number, invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number } = req.body;
+  console.log("DSDSD", invoice_items);
+
   try {
-    const [result] = await pool.execute(
-      `UPDATE invoices SET 
-        item_name = ?, item_category = ?, description =?, item_code =?, sale_price =?, purchase_price =?, item_stock =? 
-       WHERE id = ?`,
-      [item_name, item_category, description, item_code, sale_price, purchase_price, item_stock, id]
-    );
-    res.json({ message: 'Customer updated', status: 200 });
+    const query = `UPDATE invoices SET invoice_date = ?, due_date = ?, party_id = ?, status = ?,
+        total = ?, balance_left = ?, invoice_type = ?, payment_type = ?, payment_type_description = ?, invoice_items = ?, time = ?, phone_number = ?
+       WHERE invoice_number = ?`;
+    const value = [invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number, invoice_number];
+    const [result] = await pool.execute(query, value);
+
+
+
+    for (const item of JSON.parse(invoice_items)) {
+      const { id: id, booking_date, location } = item;
+
+      const updateFields = [];
+      const values = [];
+
+      if (booking_date) {
+        updateFields.push(`booking_date = ?`);
+        values.push(booking_date);
+      }
+
+      if (location) {
+        updateFields.push(`location = ?`);
+        values.push(location);
+      }
+
+      if (updateFields.length > 0) {
+        values.push(id); // WHERE id = ?
+        const query = `UPDATE invoice_items SET ${updateFields.join(', ')} WHERE id = ?`;
+        await pool.execute(query, values);
+      }
+    }
+
+    res.json({ message: 'Invoice updated', status: 200 });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message, message: err });
   }
 };
 

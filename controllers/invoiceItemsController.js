@@ -1,15 +1,15 @@
 const pool = require('../db_config/db.js');
 // CREATE
 exports.addInvoiceItem = async (req, res) => {
-  let { item_name, item_category, description, item_code, sale_price,purchase_price,item_stock } = req.body;
+  let { item_name, description, item_code, sale_price } = req.body;
   try {
     
     const [result] = await pool.execute(
-      `INSERT INTO invoice_items (item_name, item_category, description, item_code, sale_price,purchase_price,item_stock) 
-       VALUES (?,?,?,?,?,?,?)`,
-      [item_name, item_category, description, item_code, sale_price,purchase_price,item_stock]
+      `INSERT INTO invoice_items (item_name, description, item_code, sale_price) 
+       VALUES (?,?,?,?)`,
+      [item_name, description, item_code, sale_price]
     );
-    res.send({ message: 'Invoice Items created', status:200 });
+    res.send({ message: 'Invoice Items created', status:200, id:result.insertId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -40,13 +40,13 @@ exports.getInvoiceItemById = async (req, res) => {
 // UPDATE
 exports.updateInvoiceItem = async (req, res) => {
   const { id } = req.params;
-  const { item_name, item_category, description, item_code, sale_price,purchase_price,item_stock } = req.body;
+  const { item_name, description, item_code, sale_price } = req.body;
   try {
     const [result] = await pool.execute(
       `UPDATE invoice_items SET 
-        item_name = ?, item_category = ?, description =?, item_code =?, sale_price =?, purchase_price =?, item_stock =? 
+        item_name = ?, description =?, item_code =?, sale_price =?
        WHERE id = ?`,
-      [item_name, item_category, description, item_code, sale_price,purchase_price,item_stock, id]
+      [item_name, item_category, description, item_code, sale_price, id]
     );
     res.json({ message: 'Customer updated',status:200 });
   } catch (err) {
