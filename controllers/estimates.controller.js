@@ -24,6 +24,24 @@ exports.createEstimate = async (req, res) => {
     }
 };
 
+exports.updateEstimate = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { terms_and_conditions } = req.body;
+        if (!terms_and_conditions) {
+            return res.status(400).json({ error: 'terms_and_conditions required' });
+        }
+        await pool.execute(
+            `UPDATE estimates SET terms_and_conditions = ? WHERE id = ?`,
+            [terms_and_conditions, id]
+        );
+        res.send({ message: 'Estimate updated successfully',status:200});
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
 exports.getEstimateByInvoiceId = async (req, res) => {
     try {
         const { invoice_id } = req.params;
