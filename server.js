@@ -26,6 +26,7 @@ app.use("/api/mystudio/invoice-items", require("./routes/invoiceItemsRoutes.js")
 app.use("/api/mystudio/invoices", require("./routes/invoices.route.js"));
 app.use("/api/mystudio/estimates", require("./routes/estimates.routes.js"));
 app.use("/api/mystudio/super-admin", require("./routes/admin.routes.js"));
+app.use("/api/mystudio/manage-features", require("./routes/manageFeatureRoute.js"));
 
 
 app.get("/", (req, res) => {

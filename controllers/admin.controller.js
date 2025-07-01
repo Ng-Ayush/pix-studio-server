@@ -44,7 +44,7 @@ exports.createUsers = async (req, res) => {
             [name, email, phone_number, role, password, pin]
         );
 
-        res.status(201).send({ message: "User created successfully", status: 201 });
+        res.status(201).send({ message: "User created successfully", status: 200 });
     } catch (err) {
         console.error(err);
         res.status(500).send({ error: 'Internal server error', message: err.message, status: 500 });
