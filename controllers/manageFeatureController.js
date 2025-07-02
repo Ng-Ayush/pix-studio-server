@@ -30,13 +30,13 @@ exports.getFeatureById = async (req, res) => {
     try {
         const { id } = req.params;
         const [users] = await pool.execute('SELECT * FROM manage_features WHERE id = ?', [id]);
-
+        
         if (!users.length) {
             return res.status(404).send({ message: 'feature not found' });
         }
         res.send(users[0]);
     } catch (err) {
-        res.status(500).send({ error: 'Failed to get feature' });
+        res.status(500).send({ error: 'Failed to get feature', err:err });
     }
 };
 
@@ -44,12 +44,12 @@ exports.updateFeature = async (req, res) => {
     try {
         let { category, category_icon, drive_url, price, title, youtube_url, name} = req.body;
         const id = req.body.id;
-
+        
         await pool.execute(
             'UPDATE manage_features SET category = ?, category_icon = ?,drive_url = ?, price = ?, title = ?, youtube_url = ? , name =?  WHERE id = ?',
             [category, category_icon, drive_url, price, title, youtube_url, name, id]
         );
-
+        
         res.send({ message: 'Feature updated successfully', status:200 });
     } catch (err) {
         res.status(500).send({ error: 'Failed to update Feature', err:err });
@@ -63,5 +63,19 @@ exports.deleteFeatures = async (req, res) => {
         res.send({ message: 'Feature deleted successfully', status:200 });
     } catch (err) {
         res.status(500).send({ error: 'Failed to delete Feature' , erro:err});
+    }
+};
+exports.onImgUpload = async (req, res) => {
+    try {
+        let { files } = req.body;
+
+        // const [result] = await pool.execute(
+        //     'INSERT INTO manage_features (category, category_icon, drive_url, price, title, youtube_url, name) VALUES (?, ?, ? ,?, ?, ?, ?)',
+        //     [category, category_icon, drive_url, price, title, youtube_url, name]
+        // );
+        res.send({ message: "file uploaded Successfully", status: 200 ,data:files });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: 'Internal server error', message: err.message, status: 500 });
     }
 };
