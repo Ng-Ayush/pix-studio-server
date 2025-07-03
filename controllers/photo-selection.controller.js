@@ -87,13 +87,20 @@ exports.updateEvent = async (req, res) => {
     try {
 
         const { event_id } = req.params;
-        const { is_event_submitted } = req.body;
-        const [result] = await pool.execute('UPDATE events SET is_event_submitted = ? WHERE id = ?', [is_event_submitted, event_id]);
-        res.send({ message: 'Event name updated successfully', status: 200 });
+        const { is_event_submitted,event_name } = req.body;
+        let query = `UPDATE events SET is_event_submitted = ? WHERE id = ?`;
+        let value = [is_event_submitted, +event_id];
+        if(event_name){
+            query = `UPDATE events SET is_event_submitted = ?, event_name = ? WHERE id = ?`;
+            value = [is_event_submitted, event_name, +event_id];
+        }
+
+        const [result] = await pool.execute(query, value);
+        res.send({ message: 'Event updated successfully', status: 200 });
 
     }
     catch (error) {
-        res.send({ message: 'Something went wrong', status: 400 });
+        res.send({ message: 'Something went wrong', status: 400 ,error });
     }
 }
 

@@ -7,6 +7,6 @@ const authMiddleware = require('../middlewares/auth.middleware');  // Ensure the
 router.use(authMiddleware);
 
 // Get the dashboard stats for the authenticated user
-router.get('/', dashboardController.getDashboardStats);
+router.get('/fetchSalesAndPendingGraphData', dashboardController.fetchSalesAndPendingGraphData);
 
 module.exports = router;
