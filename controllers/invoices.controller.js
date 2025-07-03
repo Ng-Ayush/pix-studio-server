@@ -6,11 +6,7 @@ exports.generateInvoice = async (req, res) => {
 
   try {
 
-    const value = [invoice_number, invoice_date, due_date, party_id, 1, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number];
-
-    console.log(value);
-
-
+    const value = [invoice_number, invoice_date, due_date, party_id,'Estimate Order', total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number];
     const [result] = await pool.execute(
       `INSERT INTO invoices (invoice_number,invoice_date,due_date,party_id,status,total,balance_left,invoice_type,payment_type,payment_type_description,invoice_items,time,phone_number) 
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, value
@@ -49,7 +45,18 @@ exports.generateInvoice = async (req, res) => {
 exports.getAllInvoices = async (req, res) => {
   try {
     const [rows] = await pool.execute('SELECT * FROM invoices');
-    res.json({ message: "Customers fetched successfully", data: rows, status: 200 });
+    res.json({ message: "Invoices fetched successfully", data: rows, status: 200 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// READ ALL
+exports.getPastPayments = async (req, res) => {
+  try {
+    const {id} = req.params;
+    const [rows] = await pool.execute('SELECT * FROM invoice_payments WHERE invoice_id = ?', [id]);
+    res.json({ message: "Invoices Payment fetched successfully", data: rows, status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -202,11 +209,23 @@ exports.deleteInvoice = async (req, res) => {
   const { id } = req.params;
   try {
     const [result] = await pool.execute('DELETE FROM invoices WHERE id = ?', [id]);
-    res.json({ message: 'Customer deleted', status: 200 });
+    res.json({ message: 'Invoices deleted', status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.saveAdvancePayment = async (req,res) => {
+    const { invoice_id,party_id,method, amount_paid,note } = req.body;
+    try{
+      const query = `INSERT INTO invoice_payments (invoice_id,party_id,method,amount_paid,note) VALUES (?,?,?,?,?)`;
+      const value = [invoice_id, party_id,method,amount_paid,note];
+      const [result] = await pool.execute(query, value);
+      res.send({ message: 'Advance payment saved', status: 200 });
+    }catch(err){
+      res.send({ error: err.message ,status:500});
+    }
+}
 
 function formatDate(date) {
   var d = new Date(date),

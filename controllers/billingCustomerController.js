@@ -19,7 +19,7 @@ exports.createCustomer = async (req, res) => {
 // READ ALL
 exports.getAllCustomers = async (req, res) => {
   try {
-    const query = `SELECT bc.*,invc.total,invc.balance_left FROM billing_customer bc LEFT JOIN invoices invc ON bc.id = invc.party_id ORDER BY bc.party_name ASC`;
+    const query = `SELECT bc.*,invc.total,invc.balance_left,invc.invoice_type FROM billing_customer bc LEFT JOIN invoices invc ON bc.id = invc.party_id ORDER BY bc.party_name ASC`;
     const [rows] = await pool.execute(query);
     
     const customersMap = new Map();
@@ -38,7 +38,8 @@ exports.getAllCustomers = async (req, res) => {
           created_at: row.created_at,
           updated_at: row.updated_at,
           total: 0,
-          balance_left: 0
+          balance_left: 0,
+          invoice_type: row.invoice_type
         });
       }
 

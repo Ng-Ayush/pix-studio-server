@@ -8,5 +8,7 @@ router.get('/getInvoiceById/:id', invoiceController.getInvoiceById);
 router.put('/updateInvoice/:id', invoiceController.updateInvoice);
 router.delete('/deleteInvoice/:id', invoiceController.deleteInvoice);
 router.get('/getInvoiceDetailByInvoiceNumber/:id', invoiceController.getInvoiceDetailByInvoiceNumber);
+router.post('/saveAdvancePayment', invoiceController.saveAdvancePayment);
+router.get('/getPastPayments/:id', invoiceController.getPastPayments);
 
 module.exports = router;

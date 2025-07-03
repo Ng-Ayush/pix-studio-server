@@ -80,7 +80,7 @@ exports.convertToSales = async (req, res) => {
 
         // Optional: Update invoice status
         await pool.execute(
-            `UPDATE invoices SET status = 'finalized' WHERE id = ?`,
+            `UPDATE invoices SET status = 'Sale Order' WHERE id = ?`,
             [invoice_id]
         );
 
