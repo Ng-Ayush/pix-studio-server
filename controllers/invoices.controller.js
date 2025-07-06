@@ -35,7 +35,7 @@ exports.generateInvoice = async (req, res) => {
       }
     }
 
-    res.send({ message: 'Invoice created', status: 200 });
+    res.send({ message: 'Invoice created', status: 200,id:result.insertId });
   } catch (err) {
     res.status(500).json({ error: err.message, err: err });
   }
