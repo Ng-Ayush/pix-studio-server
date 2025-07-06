@@ -28,6 +28,7 @@ app.use("/api/mystudio/estimates", require("./routes/estimates.routes.js"));
 app.use("/api/mystudio/super-admin", require("./routes/admin.routes.js"));
 app.use("/api/mystudio/manage-features", require("./routes/manageFeatureRoute.js"));
 app.use("/api/mystudio/customer-request", require("./routes/customerRequestRoute.js"));
+app.use("/api/mystudio/manage-profile", require("./routes/manageProfileRoute.js"));
 
 
 app.get("/", (req, res) => {
