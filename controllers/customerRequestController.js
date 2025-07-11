@@ -40,12 +40,13 @@ exports.getRequestById = async (req, res) => {
 
 exports.updateRequest = async (req, res) => {
     try {
-        let { customer_name, priority} = req.body;
+        let { customer_name, priority, phone_number} = req.body;
         const ticket_id = req.body.id;
+        console.log(req.body);
 
         await pool.execute(
-            'UPDATE customer_request SET customer_name = ?, priority = ?  WHERE ticket_id = ?',
-            [customer_name, priority, ticket_id]
+            'UPDATE customer_request SET customer_name = ?, priority = ?, phone_number = ?  WHERE ticket_id = ?',
+            [customer_name, priority,phone_number, ticket_id]
         );
 
         res.send({ message: 'Request updated successfully', status:200 });
