@@ -50,12 +50,12 @@ exports.getFeatureById = async (req, res) => {
 
 exports.updateFeature = async (req, res) => {
     try {
-        let { category, category_icon, drive_url, price, title, youtube_url, name } = req.body;
+        let { category, category_icon, drive_url, price, title, youtube_url } = req.body;
         const id = req.body.id;
 
         await pool.execute(
-            'UPDATE manage_features SET category = ?, category_icon = ?,drive_url = ?, price = ?, title = ?, youtube_url = ? , name =?  WHERE id = ?',
-            [category, category_icon, drive_url, price, title, youtube_url, name, id]
+            'UPDATE manage_features SET category = ?, category_icon = ?,drive_url = ?, price = ?, title = ?, youtube_url = ?  WHERE id = ?',
+            [category, category_icon, drive_url, price, title, youtube_url, id]
         );
 
         res.send({ message: 'Feature updated successfully', status: 200 });
@@ -100,7 +100,7 @@ exports.createOrder = async (req, res) => {
         };
 
         console.log(options);
-        
+
         const order = await razorpay.orders.create(options);
         res.send({ message: 'Order created successfully', status: 200, data: order });
     } catch (err) {
@@ -115,22 +115,22 @@ exports.verifyPayment = async (req, res) => {
 
         const body = razorpay_order_id + '|' + razorpay_payment_id;
         const expectedSignature = crypto
-            .createHmac('sha256',process.env.RAZORPAY_KEY_SECRET)
+            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
             .update(body)
             .digest('hex');
 
-            console.log("expecee",expectedSignature)
-            console.log("razorpay_signature",razorpay_signature);
-            
+        console.log("expecee", expectedSignature)
+        console.log("razorpay_signature", razorpay_signature);
+
 
         if (expectedSignature === razorpay_signature) {
 
-            res.send({ status:200, message: 'Payment verified successfully' });
+            res.send({ status: 200, message: 'Payment verified successfully' });
         } else {
-            res.send({ status:400, message: 'Invalid signature' });
+            res.send({ status: 400, message: 'Invalid signature' });
         }
     } catch (error) {
         console.error('Error verifying payment:', error);
-        res.send({ status:500,message: 'Internal server error', error: 'Failed to verify payment' });
+        res.send({ status: 500, message: 'Internal server error', error: 'Failed to verify payment' });
     }
 }

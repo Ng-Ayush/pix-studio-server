@@ -11,7 +11,7 @@ exports.login = async (req, res) => {
         if (!isMatch) throw new Error('Invalid login credentials');
 
         const token = jwt.sign({ _id: users[0].id }, process.env.JWT_SECRET);
-        res.send({ user: { id: users[0].id, email: users[0].email, name: users[0].name, role: users[0].role }, token });
+        res.send({ user: { id: users[0].id, email: users[0].email, studio_name: users[0].studio_name, role: users[0].role }, token });
     } catch (err) {
         res.status(400).send({ error: err.message });
     }
@@ -30,7 +30,7 @@ exports.getAllUsers = async (req, res) => {
 
 exports.createUsers = async (req, res) => {
     try {
-        let { name, email, phone_number, role, password, pin } = req.body;
+        let { studio_name, email, phone_number, role, password, pin } = req.body;
         const [existingUser] = await pool.execute(
             'SELECT * FROM users WHERE email = ?',
             [email]);
@@ -40,8 +40,8 @@ exports.createUsers = async (req, res) => {
         pin = Math.floor(100000 + Math.random() * 900000);
 
         const [result] = await pool.execute(
-            'INSERT INTO users (name, email , phone_number, role ,password , pin) VALUES (?, ?, ? ,?, ?, ?)',
-            [name, email, phone_number, role, password, pin]
+            'INSERT INTO users (studio_name, email , phone_number, role ,password , pin) VALUES (?, ?, ? ,?, ?, ?)',
+            [studio_name, email, phone_number, role, password, pin]
         );
 
         res.status(201).send({ message: "User created successfully", status: 200 });
@@ -69,13 +69,12 @@ exports.getUsersById = async (req, res) => {
 
 exports.updateUsers = async (req, res) => {
     try {
-        let { name, email, phone_number, role, password, pin} = req.body;
+        let { studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url} = req.body;
         const id = req.body.id;
-        pin = Math.floor(100000 + Math.random() * 900000);
 
         await pool.execute(
-            'UPDATE users SET name = ?, email = ?,phone_number = ?, role = ?, password = ?, pin = ?  WHERE id = ?',
-            [name, email, phone_number, role, password, pin, id]
+            'UPDATE users SET studio_name = ?, email = ?,phone_number = ?, role = ?, youtube_url = ?, instagram_url = ? , facebook_url =?  WHERE id = ?',
+            [studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, id]
         );
 
         res.send({ message: 'User updated successfully', status:200 });
