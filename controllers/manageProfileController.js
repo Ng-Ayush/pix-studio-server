@@ -18,11 +18,13 @@ exports.getUsersByCurrentId = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {
     try {
-        let { name, email, phone_number, address, terms_and_condition,studio_icon} = req.body;
+        console.log(req.body);
+        
+        let { studio_name, email, phone_number, address, terms_and_condition,studio_icon,youtube_url , instagram_url, facebook_url} = req.body;
         const id = req.body.id;
         await pool.execute(
-            'UPDATE users SET name = ?, email = ?,phone_number = ?, address = ?, terms_and_condition = ?, studio_icon = ?  WHERE id = ?',
-            [name, email, phone_number, address, terms_and_condition,studio_icon, id]
+            'UPDATE users SET studio_name = ?, email = ?,phone_number = ?, address = ?, terms_and_condition = ?, studio_icon = ?,youtube_url = ? , instagram_url = ?, facebook_url = ?  WHERE id = ?',
+            [studio_name, email, phone_number, address, terms_and_condition,studio_icon,youtube_url , instagram_url, facebook_url, id]
         );
 
         res.send({ message: 'Profile updated successfully', status:200 });
