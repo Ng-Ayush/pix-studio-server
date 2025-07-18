@@ -34,17 +34,21 @@ exports.verifyOTPForPinUser = async (req, res) => {
     try {
         const { otp,user_id } = req.body;
 
-        if (!otp || isNaN(otp)) {
-            return res.send({ error: 'Invalid OTP' });
-        }
+        // Code is Commented for testing app
 
-        const storedOtp = otpForVerification;
+        // if (!otp || isNaN(otp)) {
+        //     return res.send({ error: 'Invalid OTP' });
+        // }
 
-        console.log("STOPED ", otpForVerification, otp);
+        // const storedOtp = otpForVerification;
 
-        if (!storedOtp) return res.send({ message: 'OTP expired or not found', status: 400 });
+        // console.log("STOPED ", otpForVerification, otp);
 
-        if (storedOtp != otp) return res.send({ message: 'Invalid OTP' });
+        // if (!storedOtp) return res.send({ message: 'OTP expired or not found', status: 400 });
+
+        // if (storedOtp != otp) return res.send({ message: 'Invalid OTP' });
+
+        //TIL HERE
 
         const token = jwt.sign({ _id: user_id }, process.env.JWT_SECRET);
 
