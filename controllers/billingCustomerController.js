@@ -6,9 +6,9 @@ exports.createCustomer = async (req, res) => {
     console.log(req.body);
 
     const [result] = await pool.execute(
-      `INSERT INTO billing_customer (party_name, phone_number, billing_address,email) 
-       VALUES (?, ?, ?, ?)`,
-      [party_name, phone_number, billing_address, email]
+      `INSERT INTO billing_customer (party_name, phone_number, billing_address,email,created_by) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [party_name, phone_number, billing_address, email, req.user.id]
     );
     res.send({ message: 'Customer created', status: 200 });
   } catch (err) {
@@ -19,9 +19,9 @@ exports.createCustomer = async (req, res) => {
 // READ ALL
 exports.getAllCustomers = async (req, res) => {
   try {
-    console.log("rewqwqwq urse",req.user)
-    const query = `SELECT bc.*,invc.total,invc.balance_left,invc.invoice_type FROM billing_customer bc LEFT JOIN invoices invc ON bc.id = invc.party_id ORDER BY bc.party_name ASC`;
-    const [rows] = await pool.execute(query);
+    console.log("rewqwqwq urse",req.user.id)
+    const query = `SELECT bc.*,invc.total,invc.balance_left,invc.invoice_type FROM billing_customer bc  LEFT JOIN invoices invc ON bc.id = invc.party_id WHERE bc.created_by = ? ORDER BY bc.party_name ASC`;
+    const [rows] = await pool.execute(query,[req.user.id]);
     
     const customersMap = new Map();
     for (const row of rows) {

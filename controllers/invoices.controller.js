@@ -1,15 +1,15 @@
 const pool = require('../db_config/db.js');
 // CREATE
 exports.generateInvoice = async (req, res) => {
-  let { invoice_number, invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number } = req.body;
+  let { invoice_number, invoice_date, due_date, party_id, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number,discount_value,discount_type } = req.body;
 
 
   try {
 
-    const value = [invoice_number, invoice_date, due_date, party_id,'Estimate Order', total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number];
+    const value = [invoice_number, invoice_date, due_date, party_id,'Estimate Order', total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number,discount_value,discount_type, req.user.id];
     const [result] = await pool.execute(
-      `INSERT INTO invoices (invoice_number,invoice_date,due_date,party_id,status,total,balance_left,invoice_type,payment_type,payment_type_description,invoice_items,time,phone_number) 
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, value
+      `INSERT INTO invoices (invoice_number,invoice_date,due_date,party_id,status,total,balance_left,invoice_type,payment_type,payment_type_description,invoice_items,time,phone_number,discount_value,discount_type,created_by) 
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, value
     );
 
     for (const item of JSON.parse(invoice_items)) {
@@ -44,7 +44,7 @@ exports.generateInvoice = async (req, res) => {
 // READ ALL
 exports.getAllInvoices = async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT * FROM invoices');
+    const [rows] = await pool.execute('SELECT * FROM invoices WHERE created_by = ?', [req.user.id]);
     res.json({ message: "Invoices fetched successfully", data: rows, status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -74,8 +74,8 @@ JOIN invoice_items invci
   ON inv.party_id = bc.id
   LEFT JOIN estimates est
   ON inv.id = est.invoice_id
-WHERE inv.id = ?`
-    const [rows] = await pool.execute(query, [id]);
+WHERE inv.id = ? AND inv.created_by = ?`;
+    const [rows] = await pool.execute(query, [id, req.user.id]);
     if (rows.length === 0) return res.status(404).json({ message: 'Invoices not found' });
     const groupedInvoice = {
       invoice_number: rows[0].invoice_number,
@@ -95,6 +95,8 @@ WHERE inv.id = ?`
       estimate_status: rows[0].estimate_status,
       estimate_id: rows[0].estimate_id,
       party_name: rows[0].party_name,
+      discount_type: rows[0].discount_type,
+      discount_value: rows[0].discount_value,
       invoice_items: rows.map(row => ({
         id: row.id,
         item_name: row.item_name,
@@ -140,6 +142,8 @@ WHERE invoice_number = ?`
       phone_number: rows[0].phone_number,
       description: rows[0].description,
       time: rows[0].time,
+      discount_type: rows[0].discount_type,
+      discount_value: rows[0].discount_value,
       invoice_items: rows.map(row => ({
         id: row.id,
         item_name: row.item_name,
@@ -163,17 +167,15 @@ WHERE invoice_number = ?`
 // UPDATE 
 exports.updateInvoice = async (req, res) => {
   const { id } = req.params;
-  const { invoice_number, invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number } = req.body;
+  const { invoice_number, invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number,discount_value,discount_type } = req.body;
   console.log("DSDSD", invoice_items);
 
   try {
     const query = `UPDATE invoices SET invoice_date = ?, due_date = ?, party_id = ?, status = ?,
-        total = ?, balance_left = ?, invoice_type = ?, payment_type = ?, payment_type_description = ?, invoice_items = ?, time = ?, phone_number = ?
+        total = ?, balance_left = ?, invoice_type = ?, payment_type = ?, payment_type_description = ?, invoice_items = ?, time = ?, phone_number = ?, discount_value = ?, discount_type = ?
        WHERE invoice_number = ?`;
-    const value = [invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number, invoice_number];
+    const value = [invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number,discount_value,discount_type, invoice_number];
     const [result] = await pool.execute(query, value);
-
-
 
     for (const item of JSON.parse(invoice_items)) {
       const { id: id, booking_date, location } = item;
@@ -216,7 +218,7 @@ exports.deleteInvoice = async (req, res) => {
 };
 
 exports.saveAdvancePayment = async (req,res) => {
-    const { invoice_id,party_id,method, amount_paid,note } = req.body;
+    const { invoice_id,party_id,method, amount_paid,note='' } = req.body;
     try{
       const query = `INSERT INTO invoice_payments (invoice_id,party_id,method,amount_paid,note) VALUES (?,?,?,?,?)`;
       const value = [invoice_id, party_id,method,amount_paid,note];

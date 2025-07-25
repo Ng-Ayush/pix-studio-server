@@ -27,6 +27,10 @@ exports.createEvent = async (req, res) => {
 };
 
 exports.getAllEvents = async (req, res) => {
+
+    console.log("USER ID ",req.user.id);
+    
+    
     try {
 
         const query = `SELECT 
