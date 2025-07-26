@@ -9,7 +9,7 @@ exports.generateInvoice = async (req, res) => {
     const value = [invoice_number, invoice_date, due_date, party_id,'Estimate Order', total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number,discount_value,discount_type, req.user.id];
     const [result] = await pool.execute(
       `INSERT INTO invoices (invoice_number,invoice_date,due_date,party_id,status,total,balance_left,invoice_type,payment_type,payment_type_description,invoice_items,time,phone_number,discount_value,discount_type,created_by) 
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, value
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, value
     );
 
     for (const item of JSON.parse(invoice_items)) {
@@ -228,6 +228,22 @@ exports.saveAdvancePayment = async (req,res) => {
       res.send({ error: err.message ,status:500});
     }
 }
+
+exports.getLastInvoiceNumber = async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT invoice_number as lastId FROM invoices WHERE created_by = ? ORDER BY id DESC LIMIT 1', [req.user.id]);
+
+    const lastId = rows[0].lastId;
+
+    res.send({
+      status:200,
+      lastInvoiceId: lastId || 0,
+    });
+  } catch (error) {
+    console.error('Error fetching last invoice ID:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
 
 function formatDate(date) {
   var d = new Date(date),

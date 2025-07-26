@@ -21,20 +21,20 @@ exports.fetchSalesAndPendingGraphData = async (req, res) => {
         const salesQuery = `
     SELECT ${periodColumn} AS period, SUM(total) AS amount
     FROM invoices
-    WHERE invoice_type = 'sale'
+    WHERE invoice_type = 'sale' AND created_by = ?
     GROUP BY period
     ORDER BY period ASC
   `;
         const estimateQuery = `
     SELECT ${periodColumn} AS period, SUM(total) AS amount
     FROM invoices
-    WHERE invoice_type = 'estimate'
+    WHERE invoice_type = 'estimate' AND created_by = ?
     GROUP BY period
     ORDER BY period ASC
   `;
 
-        const [sales] = await pool.execute(salesQuery);
-        const [estimates] = await pool.execute(estimateQuery);
+        const [sales] = await pool.execute(salesQuery, [req.user.id]);
+        const [estimates] = await pool.execute(estimateQuery, [req.user.id]);
 
         res.send({ message:"Dashboard data fetched successfully", sales, estimates, status:200 });
     }

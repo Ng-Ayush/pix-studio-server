@@ -28,7 +28,7 @@ exports.verifyPinUser = async (req, res) => {
         if (user) {
             console.log("GOT HERE ",user);
             
-            res.send({ phone_number: user.phone_number, name: user.name, user_id:user.id, status:200, message: 'Pin verification successful' });
+            res.send({ phone_number: user.phone_number, name: user.name, user_id:user.id, userData:user, status:200, message: 'Pin verification successful' });
         } else {
             res.send({ error: 'Invalid pin', status:400, message: 'Invalid pin' });
         }

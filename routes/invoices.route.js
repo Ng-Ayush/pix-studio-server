@@ -11,5 +11,6 @@ router.delete('/deleteInvoice/:id', authMiddleware,invoiceController.deleteInvoi
 router.get('/getInvoiceDetailByInvoiceNumber/:id',authMiddleware, invoiceController.getInvoiceDetailByInvoiceNumber);
 router.post('/saveAdvancePayment', authMiddleware,invoiceController.saveAdvancePayment);
 router.get('/getPastPayments/:id', authMiddleware,invoiceController.getPastPayments);
+router.get('/getLastInvoiceNumber',authMiddleware,invoiceController.getLastInvoiceNumber);
 
 module.exports = router;
