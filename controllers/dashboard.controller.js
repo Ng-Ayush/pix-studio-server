@@ -50,7 +50,7 @@ exports.getCalendarEvents = async (req, res) => {
         const groupedByDate = {};
 
         rows.forEach((event,idx) => {
-            const date = new Date(event.created_at).toISOString().split('T')[0];
+            const date = formatDate(event.created_at);
 
             if (!groupedByDate[date]) {
                 groupedByDate[date] = [];
@@ -69,3 +69,17 @@ exports.getCalendarEvents = async (req, res) => {
         res.status(500).send({ error: 'Failed to fetch calendar events', error });
     }
 };
+
+function formatDate(date) {
+  var d = new Date(date),
+    month = '' + (d.getMonth() + 1),
+    day = '' + d.getDate(),
+    year = d.getFullYear();
+
+  if (month.length < 2)
+    month = '0' + month;
+  if (day.length < 2)
+    day = '0' + day;
+
+  return [year, month, day].join('-');
+}
