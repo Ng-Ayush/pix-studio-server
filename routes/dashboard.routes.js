@@ -5,5 +5,6 @@ const authMiddleware = require('../middlewares/auth.middleware');  // Ensure the
 
 // Get the dashboard stats for the authenticated user
 router.get('/fetchSalesAndPendingGraphData',authMiddleware, dashboardController.fetchSalesAndPendingGraphData);
+router.get('/getCalendarEvents',authMiddleware, dashboardController.getCalendarEvents);
 
 module.exports = router;

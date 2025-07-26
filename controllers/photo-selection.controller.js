@@ -13,11 +13,9 @@ exports.createEvent = async (req, res) => {
     try {
         const { event_name, customer_id, is_event_submitted, is_ai_upload, quality } = req.body;
 
-        console.log(req.body)
-
         const [result] = await pool.execute(
-            'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload) VALUES (?, ?, ?, ?)',
-            [event_name, customer_id, is_event_submitted, is_ai_upload]
+            'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload, created_by) VALUES (?, ?, ?, ?, ?)',
+            [event_name, customer_id, is_event_submitted, is_ai_upload, req.user.id]
         );
         res.send({ message: 'Event created successfully', status: 200 });
     } catch (err) {
@@ -50,10 +48,11 @@ LEFT JOIN folders f ON f.event_id = e.id
 LEFT JOIN photos p ON p.folder_id = f.id
 LEFT JOIN photo_selections ps ON ps.photo_id = p.id
 LEFT JOIN customers cus ON cus.id = e.customer_id
+WHERE e.created_by = ?
 GROUP BY e.id
 `;
 
-        const [events] = await pool.execute(query);
+        const [events] = await pool.execute(query, [req.user.id]);
         const [ai_guest] = await pool.execute('SELECT ai.id as ai_guest_id,ai.event_id AS ai_event_id, ai.guest_name,ai.guest_phone FROM events e LEFT JOIN ai_guests ai ON ai.event_id = e.id');
 
         const aiGuestMap = {};
