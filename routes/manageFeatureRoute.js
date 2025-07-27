@@ -11,6 +11,8 @@ router.put('/updateFeature',  adminController.updateFeature);
 router.delete('/deleteFeatures/:id', adminController.deleteFeatures);
 router.post("/create-order",adminController.createOrder);
 router.post("/verify-payment",adminController.verifyPayment);
+router.post("/createCategory",adminController.createCategory);
+router.get('/getAllCategories',adminController.getAllCategories);
 
 
 module.exports = router;

@@ -20,11 +20,11 @@ exports.getAllFeatures = async (req, res) => {
 
 exports.createFeatures = async (req, res) => {
     try {
-        let { category, category_icon, drive_url, price, title, youtube_url, name } = req.body;
+        let { category, drive_url, price, title, youtube_url } = req.body;
 
         const [result] = await pool.execute(
-            'INSERT INTO manage_features (category, category_icon, drive_url, price, title, youtube_url, name) VALUES (?, ?, ? ,?, ?, ?, ?)',
-            [category, category_icon, drive_url, price, title, youtube_url, name]
+            'INSERT INTO manage_features (category, drive_url, price, title, youtube_url) VALUES (?, ?, ? ,?, ?)',
+            [category, drive_url, price, title, youtube_url]
         );
 
         res.status(201).send({ message: "Feature created successfully", status: 200 });
@@ -133,4 +133,30 @@ exports.verifyPayment = async (req, res) => {
         console.error('Error verifying payment:', error);
         res.send({ status: 500, message: 'Internal server error', error: 'Failed to verify payment' });
     }
+
 }
+
+exports.createCategory = async (req, res) => {
+    try {
+        let { category_name, category_icon } = req.body;
+
+        const [result] = await pool.execute(
+            'INSERT INTO categories (category_name, category_icon) VALUES (?, ?)',
+            [category_name, category_icon]
+        );
+
+        res.status(201).send({ message: "Category created successfully", status: 200 });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: 'Internal server error', message: err.message });
+    }
+};
+exports.getAllCategories = async (req, res) => {
+    try {
+        const query = `SELECT * FROM categories`;
+        const [features] = await pool.execute(query);
+        res.send({ message: "categories fetched successfully", data: features, status: 200 });
+    } catch (err) {
+        res.status(500).send({ error: 'Failed to fetch features' });
+    }
+};
