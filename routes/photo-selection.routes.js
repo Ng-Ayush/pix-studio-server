@@ -3,7 +3,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware');
 const photoSelectionController = require('../controllers/photo-selection.controller.js');
 
-router.use(authMiddleware);
+// router.use(authMiddleware);
 
 router.post("/createEvent",authMiddleware, photoSelectionController.createEvent);
 router.get("/getAllEvents",authMiddleware, photoSelectionController.getAllEvents);

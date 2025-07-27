@@ -30,7 +30,7 @@ exports.getAllUsers = async (req, res) => {
 
 exports.createUsers = async (req, res) => {
     try {
-        let {  studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url } = req.body;
+        let {  studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url,address } = req.body;
         const [existingUser] = await pool.execute(
             'SELECT * FROM users WHERE email = ?',
             [email]);
@@ -40,8 +40,8 @@ exports.createUsers = async (req, res) => {
         pin = Math.floor(100000 + Math.random() * 900000);
 
         const [result] = await pool.execute(
-            'INSERT INTO users (studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, pin) VALUES (?, ?, ? ,?, ?, ?, ?, ?)',
-            [studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, pin]
+            'INSERT INTO users (studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, pin,address) VALUES (?, ?, ? ,?, ?, ?, ?, ?, ?)',
+            [studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, pin,address]
         );
 
         res.send({ message: "Admin created successfully", status: 200 });
