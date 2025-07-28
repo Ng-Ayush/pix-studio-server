@@ -177,3 +177,28 @@ exports.getFeaturesByNewArrival = async (req, res) => {
         res.status(500).send({ error: 'Failed to fetch features' });
     }
 };
+
+exports.updateCategory = async (req, res) => {
+    try {
+        let { category_name, category_icon } = req.body;
+        const {id} = req.params;
+        await pool.execute(
+            'UPDATE categories SET category_name = ?, category_icon = ? WHERE category_id = ?',
+            [category_name, category_icon, id]
+        );
+        res.send({ message: "Category updated successfully", status: 200 });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: 'Internal server error', message: err.message });
+    }
+};
+
+exports.deleteCategory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        await pool.execute('DELETE FROM categories WHERE category_id = ?', [id]);
+        res.send({ message: 'Category deleted successfully', status: 200 });
+    } catch (err) {
+        res.status(500).send({ error: 'Failed to delete Category', erro: err });
+    }
+};

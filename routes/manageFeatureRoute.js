@@ -13,6 +13,8 @@ router.delete('/deleteFeatures/:id', adminController.deleteFeatures);
 router.post("/create-order",adminController.createOrder);
 router.post("/verify-payment",adminController.verifyPayment);
 router.post("/createCategory",adminController.createCategory);
+router.put('/updateCategory/:id',  adminController.updateCategory);
+router.delete('/deleteCategory/:id', adminController.deleteCategory);
 router.get('/getAllCategories',adminController.getAllCategories);
 router.get('/getFeaturesByNewArrival',adminController.getFeaturesByNewArrival);
 
