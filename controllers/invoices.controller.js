@@ -1,7 +1,7 @@
 const pool = require('../db_config/db.js');
 // CREATE
 exports.generateInvoice = async (req, res) => {
-  let { invoice_number, invoice_date, due_date, party_id, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number,discount_value,discount_type } = req.body;
+  let { invoice_number, invoice_date, due_date, party_id, total, balance_left, invoice_type, payment_type='', payment_type_description='', invoice_items, time, phone_number,discount_value='',discount_type='' } = req.body;
 
 
   try {
@@ -167,8 +167,7 @@ WHERE invoice_number = ?`
 // UPDATE 
 exports.updateInvoice = async (req, res) => {
   const { id } = req.params;
-  const { invoice_number, invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number,discount_value,discount_type } = req.body;
-  console.log("DSDSD", invoice_items);
+  const { invoice_number, invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type='', payment_type_description='', invoice_items, time, phone_number,discount_value='',discount_type='' } = req.body;
 
   try {
     const query = `UPDATE invoices SET invoice_date = ?, due_date = ?, party_id = ?, status = ?,

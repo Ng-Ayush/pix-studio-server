@@ -1,7 +1,7 @@
 const pool = require('../db_config/db.js');
 // CREATE
 exports.createCustomer = async (req, res) => {
-  let { party_name, phone_number, billing_address, email } = req.body;
+  let { party_name, phone_number, billing_address='', email='' } = req.body;
   try {
     console.log(req.body);
 

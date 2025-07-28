@@ -26,9 +26,11 @@ exports.verifyPinUser = async (req, res) => {
 
         const user = await verifyPin(pin);
         if (user) {
-            console.log("GOT HERE ",user);
-            
+              if(user.status == 0){
+                res.send({ error: 'Please contact to admin', status: 400, message: 'Please contact to admin' });
+            }else{
             res.send({ phone_number: user.phone_number, name: user.name, user_id:user.id, userData:user, status:200, message: 'Pin verification successful' });
+            }
         } else {
             res.send({ error: 'Invalid pin', status:400, message: 'Invalid pin' });
         }

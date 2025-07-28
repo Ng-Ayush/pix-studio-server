@@ -42,8 +42,7 @@ exports.verifyOTPForPinUser = async (req, res) => {
 
         const user = await verifyPin(pin);
         if (user) {
-
-            res.send({ phone_number: user.phone_number, name: user.name, user:user, status: 200, message: 'Pin verification successful' });
+                res.send({ phone_number: user.phone_number, name: user.name, user:user, status: 200, message: 'Pin verification successful' });
         } else {
             res.send({ error: 'Invalid pin', status: 400, message: 'Invalid pin' });
         }

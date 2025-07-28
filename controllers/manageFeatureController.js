@@ -10,7 +10,7 @@ const crypto = require('crypto');
 
 exports.getAllFeatures = async (req, res) => {
     try {
-        const query = `SELECT * FROM manage_features ORDER BY id DESC`;
+        const query = `SELECT fea.*,fea.category AS category_id, cat.category_name,cat.category_icon FROM manage_features fea LEFT JOIN categories cat ON fea.category = cat.category_id ORDER BY id DESC`;
         const [features] = await pool.execute(query);
         res.send({ message: "features fetched successfully", data: features, status: 200 });
     } catch (err) {
@@ -20,17 +20,17 @@ exports.getAllFeatures = async (req, res) => {
 
 exports.createFeatures = async (req, res) => {
     try {
-        let { category, drive_url, price, title, youtube_url } = req.body;
+        let { category, drive_url, price, title, youtube_url,description ,is_new_arrival } = req.body;
 
         const [result] = await pool.execute(
-            'INSERT INTO manage_features (category, drive_url, price, title, youtube_url) VALUES (?, ?, ? ,?, ?)',
-            [category, drive_url, price, title, youtube_url]
+            'INSERT INTO manage_features (category, drive_url, price, title, youtube_url,description,is_new_arrival) VALUES (?, ?, ? ,?, ?, ?, ?)',
+            [category, drive_url, price, title, youtube_url,description, is_new_arrival]
         );
 
         res.status(201).send({ message: "Feature created successfully", status: 200 });
     } catch (err) {
         console.error(err);
-        res.status(500).send({ error: 'Internal server error', message: err.message, status: 500 });
+        res.send({ error: 'Internal server error', message: "Internal server error", status: 500 });
     }
 };
 
@@ -50,12 +50,12 @@ exports.getFeatureById = async (req, res) => {
 
 exports.updateFeature = async (req, res) => {
     try {
-        let { category, category_icon, drive_url, price, title, youtube_url } = req.body;
+        let { category, drive_url, price, title, youtube_url,description, is_new_arrival } = req.body;
         const id = req.body.id;
 
         await pool.execute(
-            'UPDATE manage_features SET category = ?, category_icon = ?,drive_url = ?, price = ?, title = ?, youtube_url = ?  WHERE id = ?',
-            [category, category_icon, drive_url, price, title, youtube_url, id]
+            'UPDATE manage_features SET category = ?, drive_url = ?, price = ?, title = ?, youtube_url = ?,description = ?, is_new_arrival = ?  WHERE id = ?',
+            [category, drive_url, price, title, youtube_url,description ,is_new_arrival, id]
         );
 
         res.send({ message: 'Feature updated successfully', status: 200 });
@@ -76,11 +76,6 @@ exports.deleteFeatures = async (req, res) => {
 exports.onImgUpload = async (req, res) => {
     try {
         let { files } = req.body;
-
-        // const [result] = await pool.execute(
-        //     'INSERT INTO manage_features (category, category_icon, drive_url, price, title, youtube_url, name) VALUES (?, ?, ? ,?, ?, ?, ?)',
-        //     [category, category_icon, drive_url, price, title, youtube_url, name]
-        // );
         res.send({ message: "file uploaded Successfully", status: 200, data: files });
     } catch (err) {
         console.error(err);
@@ -156,6 +151,28 @@ exports.getAllCategories = async (req, res) => {
         const query = `SELECT * FROM categories`;
         const [features] = await pool.execute(query);
         res.send({ message: "categories fetched successfully", data: features, status: 200 });
+    } catch (err) {
+        res.status(500).send({ error: 'Failed to fetch features' });
+    }
+};
+
+
+exports.getFeaturesByCategory = async (req, res) => {
+    try {
+        const { category } = req.params;
+        const query = `SELECT * FROM manage_features WHERE category = ?`;
+        const [features] = await pool.execute(query, [category]);
+        res.send({ message: "features fetched successfully", data: features, status: 200 });
+    } catch (err) {
+        res.status(500).send({ error: 'Failed to fetch features' });
+    }
+};
+
+exports.getFeaturesByNewArrival = async (req, res) => {
+    try {
+        const query = `SELECT * FROM manage_features WHERE is_new_arrival = 1`;
+        const [features] = await pool.execute(query);
+        res.send({ message: "features fetched successfully", data: features, status: 200 });
     } catch (err) {
         res.status(500).send({ error: 'Failed to fetch features' });
     }
