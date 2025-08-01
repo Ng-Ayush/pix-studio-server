@@ -1,7 +1,7 @@
 const pool = require('../db_config/db.js');
 // CREATE
 exports.addInvoiceItem = async (req, res) => {
-  let { item_name, description, item_code, sale_price } = req.body;
+  let { item_name, description='', item_code='', sale_price } = req.body;
   try {
     
     const [result] = await pool.execute(

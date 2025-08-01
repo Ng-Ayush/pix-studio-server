@@ -87,7 +87,7 @@ exports.getInvoiceByPartyId = async (req, res) => {
 // UPDATE
 exports.updateCustomer = async (req, res) => {
   const { id } = req.params;
-  const { party_name, phone_number, billing_address, email } = req.body;
+  const { party_name, phone_number, billing_address='', email='' } = req.body;
   try {
     const [result] = await pool.execute(
       `UPDATE billing_customer SET 

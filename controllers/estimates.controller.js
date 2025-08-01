@@ -29,7 +29,7 @@ exports.updateEstimate = async (req, res) => {
         const { id } = req.params;
         const { terms_and_conditions } = req.body;
         if (!terms_and_conditions) {
-            return res.status(400).json({ error: 'terms_and_conditions required' });
+            return res.send({ error: 'terms_and_conditions required',message: 'Terms and Condition required', status: 400 });
         }
         await pool.execute(
             `UPDATE estimates SET terms_and_conditions = ? WHERE id = ?`,
@@ -38,7 +38,7 @@ exports.updateEstimate = async (req, res) => {
         res.send({ message: 'Estimate updated successfully',status:200});
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Internal server error' });
+        res.send({ error: 'Internal server error',message: err.message, status: 500 });
     }
 }
 
