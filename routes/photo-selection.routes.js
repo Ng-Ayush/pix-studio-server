@@ -7,9 +7,11 @@ const photoSelectionController = require('../controllers/photo-selection.control
 
 router.post("/createEvent",authMiddleware, photoSelectionController.createEvent);
 router.get("/getAllEvents",authMiddleware, photoSelectionController.getAllEvents);
+router.get("/getEventById/:event_id",authMiddleware, photoSelectionController.getEventById);
 router.put("/updateEvent/:event_id",authMiddleware, photoSelectionController.updateEvent);
 router.get("/getFolderByEventId/:event_id",authMiddleware, photoSelectionController.getFolderByEventId);
 router.get("/getAiGuestByEventId/:event_id",authMiddleware, photoSelectionController.getAiGuestByEventId);
+router.post("/addAiGuest",authMiddleware, photoSelectionController.addAiGuest);
 router.get("/getUploadedPhotosByFolderId/:folder_id",authMiddleware, photoSelectionController.getUploadedPhotosByFolderId);
 router.post("/createNewFolder",authMiddleware, photoSelectionController.createNewFolder);
 router.put("/updateFolder/:id",authMiddleware, photoSelectionController.updateFolder);
@@ -20,7 +22,9 @@ router.post("/deletePhotos",authMiddleware,photoSelectionController.deletePhotos
 router.post("/verifyUniqueCode",photoSelectionController.verifyUniqueCode)
 router.post("/getFolderListByCustomerCode",photoSelectionController.getFolderListByCustomerCode)
 router.post("/updatePhotoStatus",photoSelectionController.updatePhotoStatus)
-router.post("/submitEvent",photoSelectionController.submitEvent)
+router.post("/submitEvent",photoSelectionController.submitEvent);
+
+router.get("/getAllPhotosByEventId/:event_id",authMiddleware,photoSelectionController.getAllPhotosByEventId)
 
 
 

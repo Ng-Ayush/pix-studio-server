@@ -5,8 +5,16 @@ var otpForVerification = 0;
 const jwt = require("jsonwebtoken");
 const pool = require('../db_config/db.js');
 exports.sendOtp = async (req, res) => {
-    const { phone_number, name } = req.body;
+    const { phone_number, name, is_ai_guest = false,event_id='' } = req.body;
     if (!phone_number) return res.status(400).send({ message: "Phone number is required" });
+
+    if (is_ai_guest) {
+        const [rows] = await pool.execute('SELECT guest_phone,event_id FROM ai_guests WHERE guest_phone = ? && event_id = ? LIMIT 1', [phone_number,event_id]);
+        if (rows.length > 0) {
+            return res.send({ message: "User already exists", status: 400 });
+        }
+    }
+
 
     const otp = generateOTP();
 
@@ -26,13 +34,13 @@ exports.sendOtp = async (req, res) => {
         res.send({ message: "OTP sent successfully!", otp, status: 200 });
     } catch (error) {
         console.error("Error sending OTP:", error);
-        res.status(500).send({ message: "Failed to send OTP", status: 500 ,otp:otp });
+        res.status(500).send({ message: "Failed to send OTP", status: 500, otp: otp });
     }
 };
 
 exports.verifyOTPForPinUser = async (req, res) => {
     try {
-        const { otp,user_id } = req.body;
+        const { otp, user_id } = req.body;
 
         // Code is Commented for testing app
 
@@ -53,10 +61,10 @@ exports.verifyOTPForPinUser = async (req, res) => {
         const token = jwt.sign({ _id: user_id }, process.env.JWT_SECRET);
 
 
-        return res.send({ message: 'OTP verified',token:token, status: 200 });
+        return res.send({ message: 'OTP verified', token: token, status: 200 });
 
     } catch (error) {
         console.error('Error verifying pin:', error);
-        res.status(500).send({ message: 'Failed to verify pin',status:500 });
+        res.status(500).send({ message: 'Failed to verify pin', status: 500 });
     }
 }

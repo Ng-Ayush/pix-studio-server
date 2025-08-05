@@ -53,7 +53,7 @@ GROUP BY e.id
 `;
 
         const [events] = await pool.execute(query, [req.user.id]);
-        const [ai_guest] = await pool.execute('SELECT ai.id as ai_guest_id,ai.event_id AS ai_event_id, ai.guest_name,ai.guest_phone FROM events e LEFT JOIN ai_guests ai ON ai.event_id = e.id');
+        const [ai_guest] = await pool.execute('SELECT ai.id as ai_guest_id,ai.event_id AS ai_event_id,ai.image_url, ai.guest_name,ai.guest_phone FROM events e LEFT JOIN ai_guests ai ON ai.event_id = e.id');
 
         const aiGuestMap = {};
 
@@ -65,7 +65,8 @@ GROUP BY e.id
             aiGuestMap[guest.ai_event_id].push({
                 ai_guest_id: guest.ai_guest_id,
                 guest_name: guest.guest_name,
-                guest_phone: guest.guest_phone
+                guest_phone: guest.guest_phone,
+                image_url: guest.image_url
             });
         });
 
@@ -174,6 +175,28 @@ exports.getAiGuestByEventId = async (req, res) => {
         const { event_id } = req.params;
         const [result] = await pool.execute(`SELECT * FROM ai_guests WHERE event_id = ?`, [event_id]);
         res.send({ message: "Guest Fetched", data: result, status: 200 })
+
+    } catch (error) {
+        res.send({ message: 'Something went wrong', status: 400 });
+    }
+}
+
+exports.getEventById = async (req, res) => {
+    try {
+        const { event_id } = req.params;
+        const [result] = await pool.execute(`SELECT ev.*,user.* FROM events ev JOIN users user ON ev.created_by = user.id WHERE ev.id = ?`, [event_id]);
+        res.send({ message: "Event Fetched", data: result[0], status: 200 })
+
+    } catch (error) {
+        res.send({ message: 'Something went wrong',error:error, status: 400 });
+    }
+}
+
+exports.addAiGuest = async (req, res) => {
+    try {
+        const { event_id, guest_name,guest_phone,image_url } = req.body;
+        const [result] = await pool.execute(`INSERT INTO ai_guests (event_id,guest_name,guest_phone,image_url,created_by) VALUES (?,?,?,?,?)`, [event_id,guest_name,guest_phone,image_url,req.user.id]);
+        res.send({ message: "AI Guest Added", data: result, status: 200 })
 
     } catch (error) {
         res.send({ message: 'Something went wrong', status: 400 });
@@ -397,4 +420,15 @@ exports.submitEvent = async (req,res)=>{
         console.error(err);
         res.status(500).send({ error: 'Internal server error' });
     }
-}
+};
+
+exports.getAllPhotosByEventId = async (req,res)=>{
+    try {
+        const { event_id } = req.params;
+        const [result] = await pool.execute('SELECT * FROM photos WHERE folder_id IN (SELECT id FROM folders WHERE event_id = ?) AND uploaded_by = ?', [event_id,req.user.id]);
+        res.send({ message: 'Photos fetched successfully', data: result, status: 200 });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: 'Internal server error' });
+    }
+};
