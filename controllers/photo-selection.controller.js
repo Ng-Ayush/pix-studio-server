@@ -207,7 +207,7 @@ exports.addAiGuest = async (req, res) => {
 exports.getUploadedPhotosByFolderId = async (req, res) => {
     try {
         const { folder_id } = req.params;
-        const user_id = req.user.id;
+        // const user_id = req.user.id;
         const query = `SELECT 
     c.name,
     c.customer_unique_id,
@@ -255,6 +255,8 @@ WHERE f.id = ?;
         res.send({ message: "Photos fetched", data: response, status: 200 })
 
     } catch (error) {
+        console.log(error);
+        
         res.send({ message: 'Something went wrong', status: 400 });
     }
 }
@@ -422,10 +424,13 @@ exports.submitEvent = async (req,res)=>{
     }
 };
 
+
 exports.getAllPhotosByEventId = async (req,res)=>{
     try {
         const { event_id } = req.params;
-        const [result] = await pool.execute('SELECT * FROM photos WHERE folder_id IN (SELECT id FROM folders WHERE event_id = ?) AND uploaded_by = ?', [event_id,req.user.id]);
+        const {user} = req.query;
+        
+        const [result] = await pool.execute('SELECT * FROM photos WHERE folder_id IN (SELECT id FROM folders WHERE event_id = ?) AND uploaded_by = ?', [event_id,user]);
         res.send({ message: 'Photos fetched successfully', data: result, status: 200 });
     } catch (err) {
         console.error(err);

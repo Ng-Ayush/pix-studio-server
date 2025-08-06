@@ -8,8 +8,14 @@ exports.createCustomer = async (req, res) => {
         const user_id = req.user.id;
         const customer_unique_id  = is_ai_customer ? generateCoupleNameUniqueCode(name, phone) : generateCustomerId();
 
+        let query = 'SELECT * FROM customers WHERE phone = ? AND created_by = ?';
+
+        if(is_ai_customer){
+            query = query + ' AND is_ai_customer = 1';
+        }
+
         const [existing] = await pool.execute(
-            'SELECT * FROM customers WHERE phone = ? AND created_by = ?',
+            query,
             [phone,user_id]
         );
 
@@ -18,8 +24,8 @@ exports.createCustomer = async (req, res) => {
         }
 
         const [result] = await pool.execute(
-            'INSERT INTO customers (customer_unique_id , name, phone ,created_by) VALUES (?, ?, ? ,?)',
-            [customer_unique_id, name, phone,user_id]
+            'INSERT INTO customers (customer_unique_id , name, phone, is_ai_customer, created_by) VALUES (?, ?, ? ,?, ?)',
+            [customer_unique_id, name, phone,is_ai_customer,user_id]
         );
 
         res.send({ message:"Customer created successfully", status: 200 });

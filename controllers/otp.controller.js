@@ -4,6 +4,11 @@ const { generateOTP } = require("../utils/helper.js");
 var otpForVerification = 0;
 const jwt = require("jsonwebtoken");
 const pool = require('../db_config/db.js');
+
+const ADMIN_RE = /^\d{6}$/;         // 6 digits for admin
+const CUSTOMER_RE = /^\d{7}$/;      // 7 digits for normal customer
+const AI_RE = /^[A-Z]{2}\d{4}$/;    // 2 uppercase letters + 4 digits for AI
+
 exports.sendOtp = async (req, res) => {
     const { phone_number, name, is_ai_guest = false,event_id='' } = req.body;
     if (!phone_number) return res.status(400).send({ message: "Phone number is required" });
