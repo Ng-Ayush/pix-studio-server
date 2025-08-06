@@ -1,16 +1,16 @@
 const pool = require('../db_config/db.js');
-const { generateCustomerId } = require('../utils/helper.js');
+const { generateCustomerId,generateCoupleNameUniqueCode } = require('../utils/helper.js');
 
 // CREATE CUSTOMER
 exports.createCustomer = async (req, res) => {
     try {
-        const { name, phone } = req.body;
+        const { name, phone,is_ai_customer=false } = req.body;
         const user_id = req.user.id;
-        const customer_unique_id  = generateCustomerId();
+        const customer_unique_id  = is_ai_customer ? generateCoupleNameUniqueCode(name, phone) : generateCustomerId();
 
         const [existing] = await pool.execute(
-            'SELECT * FROM customers WHERE phone = ?',
-            [phone]
+            'SELECT * FROM customers WHERE phone = ? AND created_by = ?',
+            [phone,user_id]
         );
 
         if (existing.length > 0) {
