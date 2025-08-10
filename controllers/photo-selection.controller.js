@@ -11,18 +11,19 @@ const bucket = admin.storage().bucket();
 
 exports.createEvent = async (req, res) => {
     try {
-        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality,razorpay_payment_id } = req.body;
+        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality,razorpay_payment_id='' } = req.body;
         const value = [event_name, customer_id, is_event_submitted, is_ai_upload,razorpay_payment_id, req.user.id];
         const [result] = await pool.execute(
             'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload,payment_id, created_by) VALUES (?, ?, ?, ?, ?, ?)',
             value
         );
 
-
-        const [row] = await pool.execute(
-            'INSERT INTO payments  (user_id,event_id,amount,payment_gateway,payment_status,payment_reference,paid_at,created_at) VALUES (?,?,?,?,?,?,?,?)',
-            [req.user.id, result.insertId, req.body.plan_data.price, 'razorpay', 'success', razorpay_payment_id, new Date(), new Date()]
-        );
+        if(is_ai_upload){
+            const [row] = await pool.execute(
+                'INSERT INTO payments  (user_id,event_id,amount,payment_gateway,payment_status,payment_reference,paid_at,created_at) VALUES (?,?,?,?,?,?,?,?)',
+                [req.user.id, result.insertId, req.body.plan_data.price, 'razorpay', 'success', razorpay_payment_id, new Date(), new Date()]
+            );
+        }
         res.send({ message: 'Event created successfully', status: 200 });
     } catch (err) {
         console.error(err);
