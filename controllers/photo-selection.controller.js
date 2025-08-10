@@ -26,9 +26,9 @@ exports.createEvent = async (req, res) => {
 
 exports.getAllEvents = async (req, res) => {
 
-    console.log("USER ID ",req.user.id);
-    
-    
+    console.log("USER ID ", req.user.id);
+
+
     try {
 
         const query = `SELECT 
@@ -91,10 +91,10 @@ exports.updateEvent = async (req, res) => {
     try {
 
         const { event_id } = req.params;
-        const { is_event_submitted,event_name } = req.body;
+        const { is_event_submitted, event_name } = req.body;
         let query = `UPDATE events SET is_event_submitted = ? WHERE id = ?`;
         let value = [is_event_submitted, +event_id];
-        if(event_name){
+        if (event_name) {
             query = `UPDATE events SET is_event_submitted = ?, event_name = ? WHERE id = ?`;
             value = [is_event_submitted, event_name, +event_id];
         }
@@ -104,18 +104,40 @@ exports.updateEvent = async (req, res) => {
 
     }
     catch (error) {
-        res.send({ message: 'Something went wrong', status: 400 ,error });
+        res.send({ message: 'Something went wrong', status: 400, error });
     }
 }
 
 exports.getFolderByEventId = async (req, res) => {
     try {
         const { event_id } = req.params;
-        const [result] = await pool.execute(`SELECT f.*,ev.event_name FROM folders f JOIN events ev ON f.event_id = ev.id WHERE event_id = ?`, [event_id]);
+        const [result] = await pool.execute(`SELECT 
+    f.*,
+    ev.event_name,
+    cus.name AS customer_name,
+    p.id AS photo_id,
+    p.photo_url
+FROM folders f
+JOIN events ev 
+    ON f.event_id = ev.id
+LEFT JOIN customers cus 
+    ON ev.customer_id = cus.id
+LEFT JOIN (
+    SELECT ph.id, ph.folder_id, ph.photo_url
+    FROM photos ph
+    INNER JOIN (
+        SELECT folder_id, MIN(id) AS min_id
+        FROM photos
+        GROUP BY folder_id
+    ) x 
+    ON ph.folder_id = x.folder_id AND ph.id = x.min_id
+) p 
+    ON p.folder_id = f.id
+WHERE f.event_id = ?; `, [event_id]);
         res.send({ message: "Folder Fetched", data: result, status: 200 })
 
     } catch (error) {
-
+          res.send({ message: "Something went wrong", error:error,status: 400 })
     }
 }
 
@@ -188,14 +210,14 @@ exports.getEventById = async (req, res) => {
         res.send({ message: "Event Fetched", data: result[0], status: 200 })
 
     } catch (error) {
-        res.send({ message: 'Something went wrong',error:error, status: 400 });
+        res.send({ message: 'Something went wrong', error: error, status: 400 });
     }
 }
 
 exports.addAiGuest = async (req, res) => {
     try {
-        const { event_id, guest_name,guest_phone,image_url } = req.body;
-        const [result] = await pool.execute(`INSERT INTO ai_guests (event_id,guest_name,guest_phone,image_url,created_by) VALUES (?,?,?,?,?)`, [event_id,guest_name,guest_phone,image_url,req.user.id]);
+        const { event_id, guest_name, guest_phone, image_url } = req.body;
+        const [result] = await pool.execute(`INSERT INTO ai_guests (event_id,guest_name,guest_phone,image_url,created_by) VALUES (?,?,?,?,?)`, [event_id, guest_name, guest_phone, image_url, req.user.id]);
         res.send({ message: "AI Guest Added", data: result, status: 200 })
 
     } catch (error) {
@@ -256,7 +278,7 @@ WHERE f.id = ?;
 
     } catch (error) {
         console.log(error);
-        
+
         res.send({ message: 'Something went wrong', status: 400 });
     }
 }
@@ -349,7 +371,7 @@ exports.verifyUniqueCode = async (req, res) => {
         const [codeQuery] = await pool.execute(query, [code]);
 
         if (codeQuery[0]?.id) {
-            res.send({ message: "Code Verified",is_event_submitted:!!codeQuery[0]?.is_event_submitted, status: 200 })
+            res.send({ message: "Code Verified", is_event_submitted: !!codeQuery[0]?.is_event_submitted, status: 200 })
         } else {
             res.send({ message: "Invalid Code", status: 400 })
         }
@@ -402,7 +424,7 @@ exports.getFolderListByCustomerCode = async (req, res) => {
     }
 };
 
-exports.updatePhotoStatus = async (req,res)=>{
+exports.updatePhotoStatus = async (req, res) => {
     try {
         const { is_selected, is_favourite, folder_id, photo_id } = req.body;
         const [result] = await pool.execute('UPDATE photos SET is_selected = ?, is_favourite = ? WHERE id = ? AND folder_id = ?', [is_selected, is_favourite, photo_id, folder_id]);
@@ -413,7 +435,7 @@ exports.updatePhotoStatus = async (req,res)=>{
     }
 };
 
-exports.submitEvent = async (req,res)=>{
+exports.submitEvent = async (req, res) => {
     try {
         const { event_id } = req.body;
         const [result] = await pool.execute('UPDATE events SET is_event_submitted = 1 WHERE id = ?', [event_id]);
@@ -425,12 +447,12 @@ exports.submitEvent = async (req,res)=>{
 };
 
 
-exports.getAllPhotosByEventId = async (req,res)=>{
+exports.getAllPhotosByEventId = async (req, res) => {
     try {
         const { event_id } = req.params;
-        const {user} = req.query;
-        
-        const [result] = await pool.execute('SELECT * FROM photos WHERE folder_id IN (SELECT id FROM folders WHERE event_id = ?) AND uploaded_by = ?', [event_id,user]);
+        const { user } = req.query;
+
+        const [result] = await pool.execute('SELECT * FROM photos WHERE folder_id IN (SELECT id FROM folders WHERE event_id = ?) AND uploaded_by = ?', [event_id, user]);
         res.send({ message: 'Photos fetched successfully', data: result, status: 200 });
     } catch (err) {
         console.error(err);
