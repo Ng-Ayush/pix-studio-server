@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const estimatesController = require('../controllers/estimates.controller.js');
+const authMiddleware = require('../middlewares/auth.middleware.js');
 
-router.post('/createEstimate', estimatesController.createEstimate);
-router.put('/updateEstimate/:id', estimatesController.updateEstimate);
-router.get('/getEstimateById/:invoice_id', estimatesController.getEstimateByInvoiceId);
-router.put('/convertToSales/:invoice_id', estimatesController.convertToSales);
-router.get('/getEstimateList', estimatesController.getAllEstimates); // optional
+router.post('/createEstimate',authMiddleware, estimatesController.createEstimate);
+router.put('/updateEstimate/:id',authMiddleware, estimatesController.updateEstimate);
+router.get('/getEstimateById/:invoice_id',authMiddleware, estimatesController.getEstimateByInvoiceId);
+router.put('/convertToSales/:invoice_id',authMiddleware, estimatesController.convertToSales);
+router.get('/getEstimateList',authMiddleware, estimatesController.getAllEstimates); // optional
 
 module.exports = router;

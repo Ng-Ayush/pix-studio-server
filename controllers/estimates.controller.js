@@ -13,8 +13,8 @@ exports.createEstimate = async (req, res) => {
         }
 
         await pool.execute(
-            `INSERT INTO estimates (invoice_id, terms_and_conditions) VALUES (?, ?)`,
-            [invoice_id, terms_and_conditions]
+            `INSERT INTO estimates (invoice_id, terms_and_conditions,created_by) VALUES (?, ?, ?)`,
+            [invoice_id, terms_and_conditions, req.user.id]
         );
 
         res.send({ message: 'Estimate created successfully',status:200 });
@@ -32,8 +32,8 @@ exports.updateEstimate = async (req, res) => {
             return res.send({ error: 'terms_and_conditions required',message: 'Terms and Condition required', status: 400 });
         }
         await pool.execute(
-            `UPDATE estimates SET terms_and_conditions = ? WHERE id = ?`,
-            [terms_and_conditions, id]
+            `UPDATE estimates SET terms_and_conditions = ? WHERE id = ? AND created_by = ?`,
+            [terms_and_conditions, id, req.user.id]
         );
         res.send({ message: 'Estimate updated successfully',status:200});
     } catch (err) {
@@ -97,8 +97,10 @@ exports.getAllEstimates = async (req, res) => {
       SELECT est.id, est.status, inv.invoice_number, inv.total,inv.balance_left,inv.id AS invoice_id,     est.created_at
       FROM estimates est
       JOIN invoices inv ON inv.id = est.invoice_id
+      WHERE est.created_by = ?
       ORDER BY est.created_at DESC
-    `);
+
+    `, [req.user.id]);
         res.send({message:'Estimates fetched successfully', data:rows, status:200});
     } catch (err) {
         console.error(err);
