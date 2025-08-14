@@ -12,12 +12,12 @@ exports.createEstimate = async (req, res) => {
             return res.status(400).json({ error: 'Estimate already exists for this invoice' });
         }
 
-        await pool.execute(
+       const [row] = await pool.execute(
             `INSERT INTO estimates (invoice_id, terms_and_conditions,created_by) VALUES (?, ?, ?)`,
             [invoice_id, terms_and_conditions, req.user.id]
         );
 
-        res.send({ message: 'Estimate created successfully',status:200 });
+        res.send({ message: 'Estimate created successfully',estimate_id:row.insertId , status:200 });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Internal server error' });
@@ -26,14 +26,14 @@ exports.createEstimate = async (req, res) => {
 
 exports.updateEstimate = async (req, res) => {
     try {
-        const { id } = req.params;
+        const { invoice_id } = req.params;
         const { terms_and_conditions } = req.body;
         if (!terms_and_conditions) {
             return res.send({ error: 'terms_and_conditions required',message: 'Terms and Condition required', status: 400 });
         }
         await pool.execute(
-            `UPDATE estimates SET terms_and_conditions = ? WHERE id = ? AND created_by = ?`,
-            [terms_and_conditions, id, req.user.id]
+            `UPDATE estimates SET terms_and_conditions = ? WHERE invoice_id = ? AND created_by = ?`,
+            [terms_and_conditions, invoice_id, req.user.id]
         );
         res.send({ message: 'Estimate updated successfully',status:200});
     } catch (err) {
