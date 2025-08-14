@@ -41,7 +41,7 @@ exports.createUsers = async (req, res) => {
 
         const [result] = await pool.execute(
             'INSERT INTO users (studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, pin,address,studio_icon) VALUES (?, ?, ? ,?, ?, ?, ?, ?, ?, ?)',
-            [studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, pin,address]
+            [studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, pin,address,studio_icon]
         );
 
         res.send({ message: "Admin created successfully", status: 200 });
