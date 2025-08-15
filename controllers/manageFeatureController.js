@@ -20,11 +20,11 @@ exports.getAllFeatures = async (req, res) => {
 
 exports.createFeatures = async (req, res) => {
     try {
-        let { category, drive_url, price, title, youtube_url,description ,is_new_arrival } = req.body;
+        let { category, drive_url, price, title, youtube_url,description ,is_new_arrival,youtube_thumbnail } = req.body;
 
         const [result] = await pool.execute(
-            'INSERT INTO manage_features (category, drive_url, price, title, youtube_url,description,is_new_arrival) VALUES (?, ?, ? ,?, ?, ?, ?)',
-            [category, drive_url, price, title, youtube_url,description, is_new_arrival]
+            'INSERT INTO manage_features (category, drive_url, price, title, youtube_url,description,is_new_arrival,youtube_thumbnail) VALUES (?, ?, ? ,?, ?, ?, ?, ?)',
+            [category, drive_url, price, title, youtube_url,description, is_new_arrival,youtube_thumbnail]
         );
 
         res.status(201).send({ message: "Feature created successfully", status: 200 });
@@ -50,12 +50,12 @@ exports.getFeatureById = async (req, res) => {
 
 exports.updateFeature = async (req, res) => {
     try {
-        let { category, drive_url, price, title, youtube_url,description, is_new_arrival } = req.body;
+        let { category, drive_url, price, title, youtube_url,description, is_new_arrival,youtube_thumbnail } = req.body;
         const id = req.body.id;
 
         await pool.execute(
-            'UPDATE manage_features SET category = ?, drive_url = ?, price = ?, title = ?, youtube_url = ?,description = ?, is_new_arrival = ?  WHERE id = ?',
-            [category, drive_url, price, title, youtube_url,description ,is_new_arrival, id]
+            'UPDATE manage_features SET category = ?, drive_url = ?, price = ?, title = ?, youtube_url = ?,description = ?, is_new_arrival = ?, youtube_thumbnail = ?  WHERE id = ?',
+            [category, drive_url, price, title, youtube_url,description ,is_new_arrival,youtube_thumbnail, id]
         );
 
         res.send({ message: 'Feature updated successfully', status: 200 });
