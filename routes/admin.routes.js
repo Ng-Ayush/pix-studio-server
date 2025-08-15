@@ -9,6 +9,8 @@ router.get('/getUsersById/:id',adminController.getUsersById);
 router.put('/updateUsers',  adminController.updateUsers);
 router.put('/toggleAdminStatus/:id',  adminController.toggleAdminStatus);
 router.delete('/deleteUsers/:id', adminController.deleteUsers);
+router.get('/getDynamicImageUrl',adminController.getDynamicImageUrl);
+router.post('/insertImages', adminController.insertImages);
 
 
 

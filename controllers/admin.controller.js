@@ -30,7 +30,7 @@ exports.getAllUsers = async (req, res) => {
 
 exports.createUsers = async (req, res) => {
     try {
-        let {  studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url,address,studio_icon } = req.body;
+        let { studio_name, email, phone_number, role, youtube_url, instagram_url, facebook_url, address, studio_icon } = req.body;
         const [existingUser] = await pool.execute(
             'SELECT * FROM users WHERE email = ?',
             [email]);
@@ -41,7 +41,7 @@ exports.createUsers = async (req, res) => {
 
         const [result] = await pool.execute(
             'INSERT INTO users (studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, pin,address,studio_icon) VALUES (?, ?, ? ,?, ?, ?, ?, ?, ?, ?)',
-            [studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, pin,address,studio_icon]
+            [studio_name, email, phone_number, role, youtube_url, instagram_url, facebook_url, pin, address, studio_icon]
         );
 
         res.send({ message: "Admin created successfully", status: 200 });
@@ -69,16 +69,16 @@ exports.getUsersById = async (req, res) => {
 
 exports.updateUsers = async (req, res) => {
     try {
-        let { studio_name, email, phone_number, youtube_url , instagram_url, facebook_url,address,studio_icon,role,id} = req.body;
+        let { studio_name, email, phone_number, youtube_url, instagram_url, facebook_url, address, studio_icon, role, id } = req.body;
 
         await pool.execute(
             'UPDATE users SET studio_name = ?, email = ?,phone_number = ?, youtube_url = ?, instagram_url = ? , facebook_url =?,address = ? , studio_icon = ?, role = ?  WHERE id = ?',
-            [studio_name, email, phone_number, youtube_url , instagram_url, facebook_url,address,studio_icon,role, id]
+            [studio_name, email, phone_number, youtube_url, instagram_url, facebook_url, address, studio_icon, role, id]
         );
 
-        res.send({ message: 'User updated successfully', status:200 });
+        res.send({ message: 'User updated successfully', status: 200 });
     } catch (err) {
-        res.status(500).send({ error: 'Failed to update User', err:err });
+        res.status(500).send({ error: 'Failed to update User', err: err });
     }
 };
 
@@ -86,20 +86,50 @@ exports.deleteUsers = async (req, res) => {
     try {
         const { id } = req.params;
         await pool.execute('DELETE FROM users WHERE id = ?', [id]);
-        res.send({ message: 'users deleted successfully', status:200 });
+        res.send({ message: 'users deleted successfully', status: 200 });
     } catch (err) {
         res.status(500).send({ error: 'Failed to delete users' });
     }
 };
 
-exports.toggleAdminStatus = async (req,res)=>{
+exports.toggleAdminStatus = async (req, res) => {
     try {
-            const {id} = req.params;
-            const{status} =  req.body;
-            await pool.execute('UPDATE users SET status = ? WHERE id = ?', [status, id]);
-            res.send({ message: 'Admin status updated successfully', status:200 });
+        const { id } = req.params;
+        const { status } = req.body;
+        await pool.execute('UPDATE users SET status = ? WHERE id = ?', [status, id]);
+        res.send({ message: 'Admin status updated successfully', status: 200 });
 
     } catch (error) {
         res.status(500).send({ error: 'Failed to update admin status' });
     }
+
 }
+exports.getDynamicImageUrl = async (req, res) => {
+    try {
+        const [images] = await pool.execute(`SELECT image_url FROM dynamic_images ORDER BY created_at DESC LIMIT 3`);
+        if (!images.length) {
+            return res.status(404).send({ message: 'Images not found' });
+        }
+        res.send({ status: 200, data: images.map(image => image.image_url), message: 'Images fetched successfully' });
+    } catch (err) {
+        res.status(500).send({ error: 'Failed to get Images' });
+    }
+}
+
+exports.insertImages = async (req, res) => {
+    const {images} = req.body;
+    console.log(images);
+    
+    try {
+        const query = 'INSERT INTO dynamic_images (image_url) VALUES ?';
+
+        // Convert array of strings into array of arrays for bulk insert
+        const values = images.map((url) => url ? [url] : '');
+
+        const [result] = await pool.query(query, [values]);
+        console.log(`Inserted ${result.affectedRows} images successfully.`);
+        res.send({ message: 'Images inserted successfully', status: 200 });
+    } catch (err) {
+        res.status(500).send({ error: 'Failed to insert Image', err: err });
+    }
+};
