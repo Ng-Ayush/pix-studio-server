@@ -10,7 +10,7 @@ exports.createCustomer = async (req, res) => {
        VALUES (?, ?, ?, ?, ?)`,
       [party_name, phone_number, billing_address, email, req.user.id]
     );
-    res.send({ message: 'Customer created', status: 200 });
+    res.send({ message: 'Customer created',id: result.insertId, status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
