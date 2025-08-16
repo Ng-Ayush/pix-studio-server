@@ -59,6 +59,8 @@ exports.verifyPinUser = async (req, res) => {
 
             if (codeQuery[0]?.id) {
                 res.send({ message: "Code Verified", role: 'customer', data: codeQuery[0], is_event_submitted: !!codeQuery[0]?.is_event_submitted, status: 200 })
+            } else{
+                res.send({ message: "Invalid Code", status: 400 })
             }
         } else if (role == 'ai_customer') {
             const query = `SELECT 
@@ -74,8 +76,11 @@ exports.verifyPinUser = async (req, res) => {
 
             const [row] = await pool.execute(query, [pin]);
             console.log(row);
-            
+            if(row[0]?.id){
                 res.send({ message: "Code Verified", role: 'ai_customer', data: row[0], status: 200 })
+            } else{
+                res.send({ message: "Invalid Code", status: 400 })
+            }
         }
 
     } catch (error) {
