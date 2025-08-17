@@ -230,7 +230,7 @@ exports.saveAdvancePayment = async (req,res) => {
 
 exports.getLastInvoiceNumber = async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT invoice_number as lastId FROM invoices WHERE created_by = ? ORDER BY id DESC LIMIT 1', [req.user.id]);
+    const [rows] = await pool.execute('SELECT invoice_number as lastId FROM invoices ORDER BY id DESC LIMIT 1');
 
     const lastId = rows[0].lastId;
 
