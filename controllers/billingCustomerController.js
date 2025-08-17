@@ -1,16 +1,23 @@
 const pool = require('../db_config/db.js');
 // CREATE
 exports.createCustomer = async (req, res) => {
-  let { party_name, phone_number, billing_address='', email='' } = req.body;
+  let { party_name, phone_number, billing_address = '', email = '' } = req.body;
   try {
-    console.log(req.body);
+
+    const [isExist] = await pool.execute(
+      `SELECT phone_number FROM billing_customer WHERE phone_number = ? AND created_by = ?`,
+      [phone_number, req.user.id]
+    );
+    if (isExist.length > 0) {
+      return res.send({ message: 'Customer already exists', status: 409 });
+    }
 
     const [result] = await pool.execute(
       `INSERT INTO billing_customer (party_name, phone_number, billing_address,email,created_by) 
        VALUES (?, ?, ?, ?, ?)`,
       [party_name, phone_number, billing_address, email, req.user.id]
     );
-    res.send({ message: 'Customer created',id: result.insertId, status: 200 });
+    res.send({ message: 'Customer created', id: result.insertId, status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -19,10 +26,10 @@ exports.createCustomer = async (req, res) => {
 // READ ALL
 exports.getAllCustomers = async (req, res) => {
   try {
-    console.log("rewqwqwq urse",req.user.id)
+    console.log("rewqwqwq urse", req.user.id)
     const query = `SELECT bc.*,invc.total,invc.balance_left,invc.invoice_type FROM billing_customer bc  LEFT JOIN invoices invc ON bc.id = invc.party_id WHERE bc.created_by = ? ORDER BY bc.party_name ASC`;
-    const [rows] = await pool.execute(query,[req.user.id]);
-    
+    const [rows] = await pool.execute(query, [req.user.id]);
+
     const customersMap = new Map();
     for (const row of rows) {
       const customerId = row.id;
@@ -87,7 +94,7 @@ exports.getInvoiceByPartyId = async (req, res) => {
 // UPDATE
 exports.updateCustomer = async (req, res) => {
   const { id } = req.params;
-  const { party_name, phone_number, billing_address='', email='' } = req.body;
+  const { party_name, phone_number, billing_address = '', email = '' } = req.body;
   try {
     const [result] = await pool.execute(
       `UPDATE billing_customer SET 

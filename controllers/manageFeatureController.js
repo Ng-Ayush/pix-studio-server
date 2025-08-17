@@ -20,7 +20,7 @@ exports.getAllFeatures = async (req, res) => {
 
 exports.createFeatures = async (req, res) => {
     try {
-        let { category, drive_url, price, title, youtube_url,description ,is_new_arrival,youtube_thumbnail } = req.body;
+        let { category, drive_url, price, title, youtube_url,description ,is_new_arrival=false,youtube_thumbnail } = req.body;
 
         const [result] = await pool.execute(
             'INSERT INTO manage_features (category, drive_url, price, title, youtube_url,description,is_new_arrival,youtube_thumbnail) VALUES (?, ?, ? ,?, ?, ?, ?, ?)',

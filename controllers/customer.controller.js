@@ -1,34 +1,39 @@
 const pool = require('../db_config/db.js');
-const { generateCustomerId,generateCoupleNameUniqueCode } = require('../utils/helper.js');
+const { generateCustomerId, generateCoupleNameUniqueCode } = require('../utils/helper.js');
 
 // CREATE CUSTOMER
 exports.createCustomer = async (req, res) => {
     try {
-        const { name, phone,is_ai_customer=false } = req.body;
+        const { name, phone, is_ai_customer = false } = req.body;
         const user_id = req.user.id;
-        const customer_unique_id  = is_ai_customer ? generateCoupleNameUniqueCode(name, phone) : generateCustomerId();
+        const customer_unique_id = is_ai_customer ? generateCoupleNameUniqueCode(name, phone) : generateCustomerId();
 
-        let query = 'SELECT * FROM customers WHERE phone = ? AND created_by = ?';
+        let query = 'SELECT phone FROM customers WHERE phone = ? AND created_by = ?';
 
-        if(is_ai_customer){
+        const existingCustomer = await pool.execute(query, [phone, user_id]);
+        if (existingCustomer[0].length > 0) {
+            return res.send({ message: 'Customer already exists', status: 400 });
+        }
+
+        if (is_ai_customer) {
             query = query + ' AND is_ai_customer = 1';
         }
 
         const [existing] = await pool.execute(
             query,
-            [phone,user_id]
+            [phone, user_id]
         );
 
         if (existing.length > 0) {
-            return res.send({ message: 'Customer already exists',status: 400 });
+            return res.send({ message: 'Customer already exists', status: 400 });
         }
 
         const [result] = await pool.execute(
             'INSERT INTO customers (customer_unique_id , name, phone, is_ai_customer, created_by) VALUES (?, ?, ? ,?, ?)',
-            [customer_unique_id, name, phone,is_ai_customer,user_id]
+            [customer_unique_id, name, phone, is_ai_customer, user_id]
         );
 
-        res.send({ message:"Customer created successfully", status: 200 });
+        res.send({ message: "Customer created successfully", status: 200 });
     } catch (err) {
         console.error(err);
         res.status(500).send({ error: 'Internal server error' });
@@ -40,8 +45,8 @@ exports.getAllCustomers = async (req, res) => {
     try {
         const user_id = req.user.id;
         const query = `SELECT cus.*, (SELECT COUNT(*) FROM events WHERE customer_id = cus.id) AS events FROM customers cus WHERE created_by = ? ORDER BY id DESC`
-        const [customers] = await pool.execute(query,[user_id]);
-        res.send({message:"Customers fetched successfully", data:customers ,status:200});
+        const [customers] = await pool.execute(query, [user_id]);
+        res.send({ message: "Customers fetched successfully", data: customers, status: 200 });
     } catch (err) {
         res.status(500).send({ error: 'Failed to fetch customers' });
     }
@@ -68,15 +73,15 @@ exports.searchCustomer = async (req, res) => {
         const { name } = req.params;
         const user_id = req.user.id;
         console.log(name);
-        
-        const query =   `SELECT cus.*, (SELECT COUNT(*) FROM events WHERE customer_id = cus.id) AS events FROM customers cus WHERE name LIKE '%${name}%' AND created_by = ? ORDER BY id DESC`;
+
+        const query = `SELECT cus.*, (SELECT COUNT(*) FROM events WHERE customer_id = cus.id) AS events FROM customers cus WHERE name LIKE '%${name}%' AND created_by = ? ORDER BY id DESC`;
         const [customer] = await pool.execute(query, [user_id]);
 
         if (!customer.length) {
-            return res.send({ message: 'Customer not found',status:200 ,data:[] });
+            return res.send({ message: 'Customer not found', status: 200, data: [] });
         }
 
-        res.send({message:"Customers fetched successfully", data:customer ,status:200});
+        res.send({ message: "Customers fetched successfully", data: customer, status: 200 });
     } catch (err) {
         res.status(500).send({ error: 'Failed to get customer' });
     }
@@ -90,10 +95,10 @@ exports.updateCustomer = async (req, res) => {
 
         await pool.execute(
             'UPDATE customers SET name = ?, phone = ? WHERE id = ? AND created_by = ?',
-            [name, phone, id,user_id]
+            [name, phone, id, user_id]
         );
 
-        res.send({ message: 'Customer updated successfully', status:200 });
+        res.send({ message: 'Customer updated successfully', status: 200 });
     } catch (err) {
         res.status(500).send({ error: 'Failed to update customer' });
     }
@@ -104,8 +109,8 @@ exports.deleteCustomer = async (req, res) => {
     try {
         const { id } = req.params;
         const user_id = req.user.id;
-        await pool.execute('DELETE FROM customers WHERE id = ? AND created_by = ?', [id,user_id]);
-        res.send({ message: 'Customer deleted successfully', status:200 });
+        await pool.execute('DELETE FROM customers WHERE id = ? AND created_by = ?', [id, user_id]);
+        res.send({ message: 'Customer deleted successfully', status: 200 });
     } catch (err) {
         res.status(500).send({ error: 'Failed to delete customer' });
     }
