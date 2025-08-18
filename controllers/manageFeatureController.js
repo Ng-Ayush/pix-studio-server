@@ -10,7 +10,7 @@ const crypto = require('crypto');
 
 exports.getAllFeatures = async (req, res) => {
     try {
-        const query = `SELECT fea.*,fea.category AS category_id, cat.category_name,cat.category_icon FROM manage_features fea LEFT JOIN categories cat ON fea.category = cat.category_id ORDER BY id DESC`;
+        const query = `SELECT fea.*,fea.category AS category_id, cat.category_name,cat.category_icon FROM manage_features fea LEFT JOIN categories cat ON fea.category = cat.category_id ORDER BY fea.id DESC`;
         const [features] = await pool.execute(query);
         res.send({ message: "features fetched successfully", data: features, status: 200 });
     } catch (err) {
@@ -20,11 +20,11 @@ exports.getAllFeatures = async (req, res) => {
 
 exports.createFeatures = async (req, res) => {
     try {
-        let { category, drive_url, price, title, youtube_url,description ,is_new_arrival=false,youtube_thumbnail } = req.body;
+        let { category, drive_url, price, title, youtube_url,description ,is_new_arrival=false,youtube_thumbnail,is_unique_feature=false} = req.body;
 
         const [result] = await pool.execute(
-            'INSERT INTO manage_features (category, drive_url, price, title, youtube_url,description,is_new_arrival,youtube_thumbnail) VALUES (?, ?, ? ,?, ?, ?, ?, ?)',
-            [category, drive_url, price, title, youtube_url,description, is_new_arrival,youtube_thumbnail]
+            'INSERT INTO manage_features (category, drive_url, price, title, youtube_url,description,is_new_arrival,youtube_thumbnail,is_unique_feature) VALUES (?, ?, ? ,?, ?, ?, ?, ?, ?)',
+            [category, drive_url, price, title, youtube_url,description, is_new_arrival,youtube_thumbnail,is_unique_feature]
         );
 
         res.status(201).send({ message: "Feature created successfully", status: 200 });
@@ -50,12 +50,12 @@ exports.getFeatureById = async (req, res) => {
 
 exports.updateFeature = async (req, res) => {
     try {
-        let { category, drive_url, price, title, youtube_url,description, is_new_arrival,youtube_thumbnail } = req.body;
+        let { category, drive_url, price, title, youtube_url,description, is_new_arrival,youtube_thumbnail,is_unique_feature } = req.body;
         const id = req.body.id;
 
         await pool.execute(
-            'UPDATE manage_features SET category = ?, drive_url = ?, price = ?, title = ?, youtube_url = ?,description = ?, is_new_arrival = ?, youtube_thumbnail = ?  WHERE id = ?',
-            [category, drive_url, price, title, youtube_url,description ,is_new_arrival,youtube_thumbnail, id]
+            'UPDATE manage_features SET category = ?, drive_url = ?, price = ?, title = ?, youtube_url = ?,description = ?, is_new_arrival = ?, youtube_thumbnail = ?,is_unique_feature = ?   WHERE id = ?',
+            [category, drive_url, price, title, youtube_url,description ,is_new_arrival,youtube_thumbnail,is_unique_feature, id]
         );
 
         res.send({ message: 'Feature updated successfully', status: 200 });
@@ -160,7 +160,7 @@ exports.getAllCategories = async (req, res) => {
 exports.getFeaturesByCategory = async (req, res) => {
     try {
         const { category } = req.params;
-        const query = `SELECT * FROM manage_features WHERE category = ?`;
+        const query = `SELECT * FROM manage_features WHERE category = ? ORDER BY is_unique_feature DESC, updated_at DESC`;
         const [features] = await pool.execute(query, [category]);
         res.send({ message: "features fetched successfully", data: features, status: 200 });
     } catch (err) {
@@ -170,7 +170,7 @@ exports.getFeaturesByCategory = async (req, res) => {
 
 exports.getFeaturesByNewArrival = async (req, res) => {
     try {
-        const query = `SELECT * FROM manage_features WHERE is_new_arrival = 1`;
+        const query = `SELECT * FROM manage_features WHERE is_new_arrival = 1 ORDER BY is_unique_feature DESC, updated_at DESC`;
         const [features] = await pool.execute(query);
         res.send({ message: "features fetched successfully", data: features, status: 200 });
     } catch (err) {
