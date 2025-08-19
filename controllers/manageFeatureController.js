@@ -20,11 +20,11 @@ exports.getAllFeatures = async (req, res) => {
 
 exports.createFeatures = async (req, res) => {
     try {
-        let { category, drive_url, price, title, youtube_url,description ,is_new_arrival=false,youtube_thumbnail,is_unique_feature=false} = req.body;
+        let { category, drive_url, price, title, youtube_url,description ,is_new_arrival=false,youtube_thumbnail,is_unique_feature=false,is_purchased = false} = req.body;
 
         const [result] = await pool.execute(
-            'INSERT INTO manage_features (category, drive_url, price, title, youtube_url,description,is_new_arrival,youtube_thumbnail,is_unique_feature) VALUES (?, ?, ? ,?, ?, ?, ?, ?, ?)',
-            [category, drive_url, price, title, youtube_url,description, is_new_arrival,youtube_thumbnail,is_unique_feature]
+            'INSERT INTO manage_features (category, drive_url, price, title, youtube_url,description,is_new_arrival,youtube_thumbnail,is_unique_feature,is_purchased) VALUES (?, ?, ? ,?, ?, ?, ?, ?, ?,?)',
+            [category, drive_url, price, title, youtube_url,description, is_new_arrival,youtube_thumbnail,is_unique_feature,is_purchased]
         );
 
         res.status(201).send({ message: "Feature created successfully", status: 200 });
@@ -50,12 +50,12 @@ exports.getFeatureById = async (req, res) => {
 
 exports.updateFeature = async (req, res) => {
     try {
-        let { category, drive_url, price, title, youtube_url,description, is_new_arrival,youtube_thumbnail,is_unique_feature } = req.body;
+        let { category, drive_url, price, title, youtube_url,description, is_new_arrival,youtube_thumbnail,is_unique_feature,is_purchased=false } = req.body;
         const id = req.body.id;
 
         await pool.execute(
-            'UPDATE manage_features SET category = ?, drive_url = ?, price = ?, title = ?, youtube_url = ?,description = ?, is_new_arrival = ?, youtube_thumbnail = ?,is_unique_feature = ?   WHERE id = ?',
-            [category, drive_url, price, title, youtube_url,description ,is_new_arrival,youtube_thumbnail,is_unique_feature, id]
+            'UPDATE manage_features SET category = ?, drive_url = ?, price = ?, title = ?, youtube_url = ?,description = ?, is_new_arrival = ?, youtube_thumbnail = ?,is_unique_feature = ?, is_purchased = ?   WHERE id = ?',
+            [category, drive_url, price, title, youtube_url,description ,is_new_arrival,youtube_thumbnail,is_unique_feature,is_purchased, id]
         );
 
         res.send({ message: 'Feature updated successfully', status: 200 });
@@ -106,7 +106,7 @@ exports.createOrder = async (req, res) => {
 
 exports.verifyPayment = async (req, res) => {
     try {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature,feature_id,amount } = req.body;
 
         const body = razorpay_order_id + '|' + razorpay_payment_id;
         const expectedSignature = crypto
@@ -114,13 +114,19 @@ exports.verifyPayment = async (req, res) => {
             .update(body)
             .digest('hex');
 
-        console.log("expecee", expectedSignature)
-        console.log("razorpay_signature", razorpay_signature);
-
-
         if (expectedSignature === razorpay_signature) {
 
-            res.send({ status: 200, message: 'Payment verified successfully' });
+              const [features_payment] = await pool.execute(
+                'INSERT INTO features_payment (user_id,feature_id,payment_id,paid_at,amount) VALUES (?,?,?,?,?)',
+                [req.user.id, feature_id, razorpay_payment_id,new Date(),amount]
+            );
+
+            const [manage_features] = await pool.execute(
+                'UPDATE manage_features SET is_purchased = 1 WHERE id = ?',
+                [feature_id]
+            );
+
+            res.send({ status: 200, message: 'Payment verified successfully',features_payment,manage_features });
         } else {
             res.send({ status: 400, message: 'Invalid signature' });
         }
