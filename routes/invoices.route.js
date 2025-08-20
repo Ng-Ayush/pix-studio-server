@@ -12,5 +12,7 @@ router.get('/getInvoiceDetailByInvoiceNumber/:id',authMiddleware, invoiceControl
 router.post('/saveAdvancePayment', authMiddleware,invoiceController.saveAdvancePayment);
 router.get('/getPastPayments/:id', authMiddleware,invoiceController.getPastPayments);
 router.get('/getLastInvoiceNumber',authMiddleware,invoiceController.getLastInvoiceNumber);
+router.post('/sendPdfViaWhatsApp',authMiddleware, invoiceController.sendPdfViaWhatsApp);
+
 
 module.exports = router;

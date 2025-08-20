@@ -1,12 +1,14 @@
 const pool = require('../db_config/db.js');
+const twilio = require("twilio");
+const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
 // CREATE
 exports.generateInvoice = async (req, res) => {
-  let { invoice_number, invoice_date, due_date, party_id, total, balance_left, invoice_type, payment_type='', payment_type_description='', invoice_items, time, phone_number,discount_value='',discount_type='' } = req.body;
+  let { invoice_number, invoice_date, due_date, party_id, total, balance_left, invoice_type, payment_type = '', payment_type_description = '', invoice_items, time, phone_number, discount_value = '', discount_type = '' } = req.body;
 
 
   try {
 
-    const value = [invoice_number, invoice_date, due_date, party_id,'Estimate Order', total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number,discount_value,discount_type, req.user.id];
+    const value = [invoice_number, invoice_date, due_date, party_id, 'Estimate Order', total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number, discount_value, discount_type, req.user.id];
     const [result] = await pool.execute(
       `INSERT INTO invoices (invoice_number,invoice_date,due_date,party_id,status,total,balance_left,invoice_type,payment_type,payment_type_description,invoice_items,time,phone_number,discount_value,discount_type,created_by) 
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, value
@@ -35,7 +37,7 @@ exports.generateInvoice = async (req, res) => {
       }
     }
 
-    res.send({ message: 'Invoice created', status: 200,id:result.insertId });
+    res.send({ message: 'Invoice created', status: 200, id: result.insertId });
   } catch (err) {
     res.status(500).json({ error: err.message, err: err });
   }
@@ -54,7 +56,7 @@ exports.getAllInvoices = async (req, res) => {
 // READ ALL
 exports.getPastPayments = async (req, res) => {
   try {
-    const {id} = req.params;
+    const { id } = req.params;
     const [rows] = await pool.execute('SELECT * FROM invoice_payments WHERE invoice_id = ?', [id]);
     res.json({ message: "Invoices Payment fetched successfully", data: rows, status: 200 });
   } catch (err) {
@@ -66,7 +68,7 @@ exports.getPastPayments = async (req, res) => {
 exports.getInvoiceById = async (req, res) => {
   const { id } = req.params;
   try {
-    const query = `SELECT inv.*, invci.*,inv.id AS invoice_id, bc.party_name,est.id AS estimate_id, est.terms_and_conditions, est.status as estimate_status
+    const query = `SELECT inv.*, invci.*,inv.id AS invoice_id, bc.party_name,bc.phone_number AS party_phone_number, est.id AS estimate_id, est.terms_and_conditions, est.status as estimate_status
 FROM invoices inv 
 JOIN invoice_items invci  
   ON JSON_CONTAINS(inv.invoice_items, JSON_OBJECT('id', invci.id)) 
@@ -80,7 +82,7 @@ WHERE inv.id = ? AND inv.created_by = ?`;
     const groupedInvoice = {
       invoice_number: rows[0].invoice_number,
       invoice_date: formatDate(rows[0].invoice_date),
-      invoice_id: rows[0].invoice_id, 
+      invoice_id: rows[0].invoice_id,
       due_date: formatDate(rows[0].due_date),
       party_id: rows[0].party_id,
       status: rows[0].status,
@@ -97,6 +99,7 @@ WHERE inv.id = ? AND inv.created_by = ?`;
       party_name: rows[0].party_name,
       discount_type: rows[0].discount_type,
       discount_value: rows[0].discount_value,
+      party_phone_number: rows[0].party_phone_number,
       invoice_items: rows.map(row => ({
         id: row.id,
         item_name: row.item_name,
@@ -167,13 +170,13 @@ WHERE invoice_number = ?`
 // UPDATE 
 exports.updateInvoice = async (req, res) => {
   const { id } = req.params;
-  const { invoice_number, invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type='', payment_type_description='', invoice_items, time, phone_number,discount_value='',discount_type='' } = req.body;
+  const { invoice_number, invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type = '', payment_type_description = '', invoice_items, time, phone_number, discount_value = '', discount_type = '' } = req.body;
 
   try {
     const query = `UPDATE invoices SET invoice_date = ?, due_date = ?, party_id = ?, status = ?,
         total = ?, balance_left = ?, invoice_type = ?, payment_type = ?, payment_type_description = ?, invoice_items = ?, time = ?, phone_number = ?, discount_value = ?, discount_type = ?
        WHERE invoice_number = ?`;
-    const value = [invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number,discount_value,discount_type, invoice_number];
+    const value = [invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number, discount_value, discount_type, invoice_number];
     const [result] = await pool.execute(query, value);
 
     for (const item of JSON.parse(invoice_items)) {
@@ -216,16 +219,16 @@ exports.deleteInvoice = async (req, res) => {
   }
 };
 
-exports.saveAdvancePayment = async (req,res) => {
-    const { invoice_id,party_id,method, amount_paid,note='' } = req.body;
-    try{
-      const query = `INSERT INTO invoice_payments (invoice_id,party_id,method,amount_paid,note) VALUES (?,?,?,?,?)`;
-      const value = [invoice_id, party_id,method,amount_paid,note];
-      const [result] = await pool.execute(query, value);
-      res.send({ message: 'Advance payment saved', status: 200 });
-    }catch(err){
-      res.send({ error: err.message ,status:500});
-    }
+exports.saveAdvancePayment = async (req, res) => {
+  const { invoice_id, party_id, method, amount_paid, note = '' } = req.body;
+  try {
+    const query = `INSERT INTO invoice_payments (invoice_id,party_id,method,amount_paid,note) VALUES (?,?,?,?,?)`;
+    const value = [invoice_id, party_id, method, amount_paid, note];
+    const [result] = await pool.execute(query, value);
+    res.send({ message: 'Advance payment saved', status: 200 });
+  } catch (err) {
+    res.send({ error: err.message, status: 500 });
+  }
 }
 
 exports.getLastInvoiceNumber = async (req, res) => {
@@ -235,7 +238,7 @@ exports.getLastInvoiceNumber = async (req, res) => {
     const lastId = rows[0].lastId;
 
     res.send({
-      status:200,
+      status: 200,
       lastInvoiceId: lastId || 0,
     });
   } catch (error) {
@@ -257,3 +260,23 @@ function formatDate(date) {
 
   return [year, month, day].join('-');
 }
+
+
+exports.sendPdfViaWhatsApp = async (req, res) => {
+  const { phone_number, message_body, party_name, url } = req.body;
+
+  const bodyMessage = `Hi ${party_name} ,${message_body}`;
+  try {
+    await client.messages.create({
+      body: bodyMessage,
+      from: "whatsapp:+14155238886",
+      to: "whatsapp:" + "+91" + phone_number,
+      mediaUrl: url
+    });
+    res.send({ message: "PDF Sent successfully!", status: 200 });
+
+  } catch (error) {
+    console.error("Error sending OTP:", error);
+    res.send({ message: "Failed to send PDF", status: 500 });
+  }
+};
