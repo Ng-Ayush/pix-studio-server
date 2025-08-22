@@ -7,11 +7,11 @@ const pool = require('../db_config/db.js');
 
 
 exports.sendOtp = async (req, res) => {
-    const { phone_number, name, is_ai_guest = false,event_id='' } = req.body;
+    const { phone_number, name, is_ai_guest = false, event_id = '' } = req.body;
     if (!phone_number) return res.status(400).send({ message: "Phone number is required" });
 
     if (is_ai_guest) {
-        const [rows] = await pool.execute('SELECT guest_phone,event_id FROM ai_guests WHERE guest_phone = ? && event_id = ? LIMIT 1', [phone_number,event_id]);
+        const [rows] = await pool.execute('SELECT guest_phone,event_id FROM ai_guests WHERE guest_phone = ? && event_id = ? LIMIT 1', [phone_number, event_id]);
         if (rows.length > 0) {
             return res.send({ message: "User already exists", status: 400 });
         }
@@ -29,8 +29,11 @@ exports.sendOtp = async (req, res) => {
     try {
         await client.messages.create({
             body: message,
-            from: "whatsapp:+14155238886", // Twilio Sandbox Number
-            to: "whatsapp:" + phone_number,
+            // from: "whatsapp:+14155238886", // Twilio Sandbox Number
+            // to: "whatsapp:" + phone_number,
+            from: '+19713091748', //will be change to official
+            to: "+91" + phone_number
+
         });
 
         res.send({ message: "OTP sent successfully!", otp, status: 200 });
