@@ -20,21 +20,21 @@ exports.generateInvoice = async (req, res) => {
       const updateFields = [];
       const values = [];
 
-      if (booking_date) {
-        updateFields.push(`booking_date = ?`);
-        values.push(booking_date);
-      }
+      // if (booking_date) {
+      //   updateFields.push(`booking_date = ?`);
+      //   values.push(booking_date);
+      // }
 
-      if (location) {
-        updateFields.push(`location = ?`);
-        values.push(location);
-      }
+      // if (location) {
+      //   updateFields.push(`location = ?`);
+      //   values.push(location);
+      // }
 
-      if (updateFields.length > 0) {
-        values.push(id); // WHERE id = ?
-        const query = `UPDATE invoice_items SET ${updateFields.join(', ')} WHERE id = ?`;
-        await pool.execute(query, values);
-      }
+      // if (updateFields.length > 0) {
+      //   values.push(id); // WHERE id = ?
+      //   const query = `UPDATE invoice_items SET ${updateFields.join(', ')} WHERE id = ?`;
+      //   await pool.execute(query, values);
+      // }
     }
 
     res.send({ message: 'Invoice created', status: 200, id: result.insertId });
@@ -68,17 +68,54 @@ exports.getPastPayments = async (req, res) => {
 exports.getInvoiceById = async (req, res) => {
   const { id } = req.params;
   try {
-    const query = `SELECT inv.*, invci.*,inv.id AS invoice_id, bc.party_name,bc.phone_number AS party_phone_number, est.id AS estimate_id, est.terms_and_conditions, est.status as estimate_status
+    const query = `SELECT inv.*,inv.id AS invoice_id, bc.party_name,bc.phone_number AS party_phone_number, est.id AS estimate_id, est.terms_and_conditions, est.status as estimate_status
 FROM invoices inv 
-JOIN invoice_items invci  
-  ON JSON_CONTAINS(inv.invoice_items, JSON_OBJECT('id', invci.id)) 
   LEFT JOIN billing_customer bc
   ON inv.party_id = bc.id
   LEFT JOIN estimates est
   ON inv.id = est.invoice_id
 WHERE inv.id = ? AND inv.created_by = ?`;
-    const [rows] = await pool.execute(query, [id, req.user.id]);
-    if (rows.length === 0) return res.status(404).json({ message: 'Invoices not found' });
+
+    const [rows] = await pool.execute(query, [id,req.user.id]);
+    if (rows.length === 0) return res.json({ message: 'Invoice not found',status:400 });
+
+    const invoice = rows[0];
+    const invoiceItemsArray = JSON.parse(invoice.invoice_items || "[]");
+
+    const itemIds = invoiceItemsArray.map(item => item.id);
+
+    // Step 3: Query invoice_items table for those IDs
+    const [itemRows] = await pool.query(
+      `SELECT id, item_name, quantity, description AS item_description, sale_price, amount, item_code, item_stock, created_at, booking_date, location, created_by 
+   FROM invoice_items 
+   WHERE id IN (?)`, [itemIds]
+    );
+
+    // Map static fields by id
+    const staticItemsMap = {};
+    itemRows.forEach(row => {
+      staticItemsMap[row.id] = row;
+    });
+
+    // Step 4: Merge JSON data with static data for response
+    const mergedInvoiceItems = invoiceItemsArray.map(jsonItem => {
+      const staticItem = staticItemsMap[jsonItem.id] || {};
+      return {
+        id: jsonItem.id,
+        booking_date: jsonItem.booking_date,     // from JSON
+        location: jsonItem.location,             // from JSON
+        item_name: staticItem.item_name,
+        description: staticItem.item_description,
+        sale_price: staticItem.sale_price,
+        amount: staticItem.amount,
+        quantity: staticItem.quantity,
+        item_code: staticItem.item_code,
+        item_stock: staticItem.item_stock,
+        created_at: staticItem.created_at,
+        created_by: staticItem.created_by
+      };
+    });
+
     const groupedInvoice = {
       invoice_number: rows[0].invoice_number,
       invoice_date: formatDate(rows[0].invoice_date),
@@ -100,19 +137,7 @@ WHERE inv.id = ? AND inv.created_by = ?`;
       discount_type: rows[0].discount_type,
       discount_value: rows[0].discount_value,
       party_phone_number: rows[0].party_phone_number,
-      invoice_items: rows.map(row => ({
-        id: row.id,
-        item_name: row.item_name,
-        description: row.description,
-        quantity: row.quantity,
-        sale_price: row.sale_price,
-        purchase_price: row.purchase_price,
-        item_code: row.item_code,
-        item_category: row.item_category,
-        item_stock: row.item_stock,
-        location: row.location,
-        booking_date: row.booking_date
-      }))
+      invoice_items: mergedInvoiceItems
     };
     res.json({ message: 'Invoice found', data: groupedInvoice, status: 200 });
   } catch (err) {
@@ -123,44 +148,69 @@ WHERE inv.id = ? AND inv.created_by = ?`;
 exports.getInvoiceDetailByInvoiceNumber = async (req, res) => {
   const { id } = req.params;
   try {
-    const query = `SELECT inv.*, invci.*,inv.id AS invoice_id 
-FROM invoices inv 
-JOIN invoice_items invci 
-  ON JSON_CONTAINS(inv.invoice_items, JSON_OBJECT('id', invci.id)) 
+    const query = `SELECT inv.*, inv.id AS invoice_id
+FROM invoices inv
 WHERE invoice_number = ?`
     const [rows] = await pool.execute(query, [id]);
-    if (rows.length === 0) return res.status(404).json({ message: 'Invoices not found' });
+    if (rows.length === 0) return res.json({ message: 'Invoice not found',status:400 });
+
+    const invoice = rows[0];
+    const invoiceItemsArray = JSON.parse(invoice.invoice_items || "[]");
+
+    const itemIds = invoiceItemsArray.map(item => item.id);
+
+    // Step 3: Query invoice_items table for those IDs
+    const [itemRows] = await pool.query(
+      `SELECT id, item_name, quantity, description AS item_description, sale_price, amount, item_code, item_stock, created_at, booking_date, location, created_by 
+   FROM invoice_items 
+   WHERE id IN (?)`, [itemIds]
+    );
+
+    // Map static fields by id
+    const staticItemsMap = {};
+    itemRows.forEach(row => {
+      staticItemsMap[row.id] = row;
+    });
+
+    // Step 4: Merge JSON data with static data for response
+    const mergedInvoiceItems = invoiceItemsArray.map(jsonItem => {
+      const staticItem = staticItemsMap[jsonItem.id] || {};
+      return {
+        id: jsonItem.id,
+        booking_date: jsonItem.booking_date,     // from JSON
+        location: jsonItem.location,             // from JSON
+        item_name: staticItem.item_name,
+        description: staticItem.item_description,
+        sale_price: staticItem.sale_price,
+        amount: staticItem.amount,
+        quantity: staticItem.quantity,
+        item_code: staticItem.item_code,
+        item_stock: staticItem.item_stock,
+        created_at: staticItem.created_at,
+        created_by: staticItem.created_by
+      };
+    });
+
     const groupedInvoice = {
-      invoice_number: rows[0].invoice_number,
-      invoice_date: formatDate(rows[0].invoice_date),
-      invoice_id: rows[0].invoice_id,
-      due_date: formatDate(rows[0].due_date),
-      party_id: rows[0].party_id,
-      status: rows[0].status,
-      total: rows[0].total,
-      balance_left: rows[0].balance_left,
-      invoice_type: rows[0].invoice_type,
-      payment_type: rows[0].payment_type,
-      payment_type_description: rows[0].payment_type_description,
-      phone_number: rows[0].phone_number,
-      description: rows[0].description,
-      time: rows[0].time,
-      discount_type: rows[0].discount_type,
-      discount_value: rows[0].discount_value,
-      invoice_items: rows.map(row => ({
-        id: row.id,
-        item_name: row.item_name,
-        description: row.description,
-        quantity: row.quantity,
-        sale_price: row.sale_price,
-        purchase_price: row.purchase_price,
-        item_code: row.item_code,
-        item_category: row.item_category,
-        item_stock: row.item_stock,
-        location: row.location,
-        booking_date: row.booking_date
-      }))
+      invoice_number: invoice.invoice_number,
+      invoice_date: formatDate(invoice.invoice_date),
+      invoice_id: invoice.invoice_id,
+      due_date: formatDate(invoice.due_date),
+      party_id: invoice.party_id,
+      status: invoice.status,
+      total: +invoice.total,
+      balance_left: +invoice.balance_left,
+      invoice_type: invoice.invoice_type,
+      payment_type: invoice.payment_type,
+      payment_type_description: invoice.payment_type_description,
+      phone_number: invoice.phone_number,
+      description: invoice.description,
+      time: invoice.time,
+      discount_type: invoice.discount_type,
+      discount_value: +invoice.discount_value,
+      invoice_items: mergedInvoiceItems
     };
+
     res.json({ message: 'Invoice found', data: groupedInvoice, status: 200 });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -185,21 +235,21 @@ exports.updateInvoice = async (req, res) => {
       const updateFields = [];
       const values = [];
 
-      if (booking_date) {
-        updateFields.push(`booking_date = ?`);
-        values.push(booking_date);
-      }
+      // if (booking_date) {
+      //   updateFields.push(`booking_date = ?`);
+      //   values.push(booking_date);
+      // }
 
-      if (location) {
-        updateFields.push(`location = ?`);
-        values.push(location);
-      }
+      // if (location) {
+      //   updateFields.push(`location = ?`);
+      //   values.push(location);
+      // }
 
-      if (updateFields.length > 0) {
-        values.push(id); // WHERE id = ?
-        const query = `UPDATE invoice_items SET ${updateFields.join(', ')} WHERE id = ?`;
-        await pool.execute(query, values);
-      }
+      // if (updateFields.length > 0) {
+      //   values.push(id); // WHERE id = ?
+      //   const query = `UPDATE invoice_items SET ${updateFields.join(', ')} WHERE id = ?`;
+      //   await pool.execute(query, values);
+      // }
     }
 
     res.json({ message: 'Invoice updated', status: 200 });
@@ -225,6 +275,12 @@ exports.saveAdvancePayment = async (req, res) => {
     const query = `INSERT INTO invoice_payments (invoice_id,party_id,method,amount_paid,note) VALUES (?,?,?,?,?)`;
     const value = [invoice_id, party_id, method, amount_paid, note];
     const [result] = await pool.execute(query, value);
+    const [invoiceRow] = await pool.execute(  `UPDATE invoices
+       SET balance_left = balance_left - ?
+       WHERE id = ?`,
+      [amount_paid, invoice_id]);  ;
+
+
     res.send({ message: 'Advance payment saved', status: 200 });
   } catch (err) {
     res.send({ error: err.message, status: 500 });
@@ -233,13 +289,15 @@ exports.saveAdvancePayment = async (req, res) => {
 
 exports.getLastInvoiceNumber = async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT invoice_number as lastId FROM invoices ORDER BY id DESC LIMIT 1');
+    const [rows] = await pool.execute(
+      'SELECT invoice_number as lastId FROM invoices ORDER BY id DESC LIMIT 1'
+    );
 
-    const lastId = rows[0].lastId;
+    const lastId = rows.length > 0 ? rows[0].lastId : 0; // ✅ safe check
 
     res.send({
       status: 200,
-      lastInvoiceId: lastId || 0,
+      lastInvoiceId: lastId,
     });
   } catch (error) {
     console.error('Error fetching last invoice ID:', error);
