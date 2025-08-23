@@ -46,40 +46,70 @@ exports.fetchSalesAndPendingGraphData = async (req, res) => {
 
 exports.getCalendarEvents = async (req, res) => {
     try {
-        const [rows] = await pool.execute('SELECT cus.name AS party_name,cus.phone AS phone_number,ev.event_name,ev.created_at FROM events ev JOIN customers cus ON cus.id = ev.customer_id WHERE ev.created_by = ?', [req.user.id]);
+        const sql = `
+      WITH RECURSIVE seq AS (
+        SELECT 0 AS idx
+        UNION ALL
+        SELECT idx + 1 FROM seq WHERE idx + 1 < 1000
+      )
+      SELECT
+        DATE_FORMAT(
+          CAST(JSON_UNQUOTE(JSON_EXTRACT(inv.invoice_items, CONCAT('$[', seq.idx, '].booking_date'))) AS DATE),
+          '%Y-%m-%d'
+        ) AS booking_date,
+        cus.party_name  AS party_name,
+        cus.phone_number AS party_phone_number,
+        inv.id    AS invoice_id,
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(inv.invoice_items, CONCAT('$[', seq.idx, '].id'))) AS UNSIGNED) AS item_id,
+         ii.item_name,
+         ii.description
+      FROM invoices inv
+      JOIN billing_customer cus ON cus.id = inv.party_id
+      JOIN seq ON seq.idx < COALESCE(JSON_LENGTH(inv.invoice_items), 0)
+      LEFT JOIN invoice_items ii
+  ON ii.id = CAST(JSON_UNQUOTE(JSON_EXTRACT(inv.invoice_items, CONCAT('$[', seq.idx, '].id'))) AS UNSIGNED)
+      WHERE inv.created_by = ?
+      ORDER BY booking_date;
+    `;
+
+        const [rows] = await pool.execute(sql, [req.user.id]);
+
         const groupedByDate = {};
+        rows.forEach((r, idx) => {
+            if (!r.booking_date) return; // skip malformed/null dates
+            const date = r.booking_date;
 
-        rows.forEach((event,idx) => {
-            const date = formatDate(event.created_at);
-
-            if (!groupedByDate[date]) {
-                groupedByDate[date] = [];
-            }
-
+            if (!groupedByDate[date]) groupedByDate[date] = [];
             groupedByDate[date].push({
-                name: event.party_name,
-                phone: event.phone_number,
-                event_name: event.event_name,
+                name: r.party_name,
+                phone: r.party_phone_number,
+                invoice_id: r.invoice_id,
+                item_id: r.item_id,
+                location: r.location,
                 index: idx,
-                date: date
+                item_name: r.item_name,
+                description: r.description,
+                date,
             });
         });
-        res.send({ message: "Calendar events fetched successfully", data: groupedByDate, status: 200 });
+
+        res.send({ message: 'Calendar events fetched successfully', data: groupedByDate, status: 200 });
     } catch (error) {
-        res.status(500).send({ error: 'Failed to fetch calendar events', error });
+        console.error(error);
+        res.status(500).send({ error: 'Failed to fetch calendar events', details: error.message });
     }
 };
 
 function formatDate(date) {
-  var d = new Date(date),
-    month = '' + (d.getMonth() + 1),
-    day = '' + d.getDate(),
-    year = d.getFullYear();
+    var d = new Date(date),
+        month = '' + (d.getMonth() + 1),
+        day = '' + d.getDate(),
+        year = d.getFullYear();
 
-  if (month.length < 2)
-    month = '0' + month;
-  if (day.length < 2)
-    day = '0' + day;
+    if (month.length < 2)
+        month = '0' + month;
+    if (day.length < 2)
+        day = '0' + day;
 
-  return [year, month, day].join('-');
+    return [year, month, day].join('-');
 }
