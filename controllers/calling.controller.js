@@ -67,10 +67,13 @@ exports.addAgent = async (req, res) => {
             }
         }
 
+        console.log("apiResponse",apiResponse);
+        
+
         // 🔹 Handle API response
         if (typeof apiResponse == "string" && apiResponse.includes("Successfully")) {
             await pool.query(
-                'INSERT INTO callings (agent_name, agent_phone, extension_number,pilot_number,email, created_by) VALUES (?, ?, ?, ?, ?)',
+                'INSERT INTO callings (agent_name, agent_phone, extension_number,pilot_number,email, created_by) VALUES (?, ?, ?, ?, ?, ?)',
                 [agent_name, agent_phone, extension_number,data.user.bizfoneno,email, req.user.id]
             );
             return res.send({ message: 'Agent added successfully', status: 200 });
