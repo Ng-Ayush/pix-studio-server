@@ -68,7 +68,7 @@ exports.getCalendarEvents = async (req, res) => {
       JOIN seq ON seq.idx < COALESCE(JSON_LENGTH(inv.invoice_items), 0)
       LEFT JOIN invoice_items ii
   ON ii.id = CAST(JSON_UNQUOTE(JSON_EXTRACT(inv.invoice_items, CONCAT('$[', seq.idx, '].id'))) AS UNSIGNED)
-      WHERE inv.created_by = ?
+      WHERE inv.created_by = ? AND inv.invoice_type = 'sale'
       ORDER BY booking_date;
     `;
 
