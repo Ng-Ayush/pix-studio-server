@@ -16,3 +16,95 @@ exports.generateCoupleNameUniqueCode = (name, phone) => {
 exports.generateOTP = () => {
     return Math.floor(100000 + Math.random() * 900000);
 };
+
+
+exports.getOtpEmailTemplate = (otp, adminName) => {
+    return `
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Studio Email Template</title>
+  <style>
+    body {
+      background: #f4f6f8;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 420px;
+      margin: 48px auto;
+      background: aliceblue;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      overflow: hidden;
+      text-align: center;
+      padding: 40px 32px 28px 32px;
+    }
+    .logo-img {
+      width: 96px;
+      margin-bottom: 16px;
+    }
+    h2 {
+      color: #2980ef;
+      margin-bottom: 10px;
+      font-size: 1.55em;
+    }
+    .otp-card {
+      margin: 24px auto 20px;
+      padding: 18px 0;
+      width: 180px;
+      background: #eaf2fa;
+      border-radius: 10px;
+      font-size: 2em;
+      letter-spacing: 12px;
+      color: #202f50;
+      font-weight: 600;
+      box-shadow: 0 2px 12px rgba(41,128,239,0.07);
+      text-align: center;
+      user-select: all;
+      border: 2px solid #d4e2f8;
+    }
+    .desc {
+      font-size: 1em;
+      color: #444;
+      margin-bottom: 18px;
+    }
+    .footer {
+      font-size: 0.92em;
+      color: #888;
+      margin-top: 30px;
+    }
+    @media (max-width: 480px) {
+      .container {
+        padding: 18px 8px 12px 8px;
+      }
+      .otp-card {
+        width: 120px;
+        font-size: 1.4em;
+        padding: 10px 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="https://firebasestorage.googleapis.com/v0/b/surajproductions-3f28b.firebasestorage.app/o/default%20assets%2Fgif_logo.gif?alt=media&token=c9c0ddf3-777d-49e8-b181-05bf58661d6a" alt="Suraj Studio Logo" class="logo-img">
+    <div style="font-size:1.16em; font-weight:600; color:#2c365c; margin-bottom:10px;">MY STUDIO</div>
+    <h2>Hello ${adminName},</h2>
+    <div class="desc">Your One-Time Password (OTP) for verification is:</div>
+    <div class="otp-card">${otp}</div>
+    <div class="desc">This OTP is valid for 5 minutes.<br>If you did not request this, please ignore this email.</div>
+    <div class="footer">
+      Thank you,<br>
+      My Studio Team
+    </div>
+  </div>
+</body>
+</html>
+
+  `;
+}
