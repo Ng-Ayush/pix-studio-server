@@ -8,71 +8,72 @@ const nodemailer = require('nodemailer');
 
 
 exports.sendOtp = async (req, res) => {
-    const { phone_number, name, is_ai_guest = false, event_id = '', email = '' } = req.body;
+    const { phone_number, name, event_id = '', email = '' } = req.body;
 
-    if (!phone_number) return res.status(400).send({ message: "Phone number is required" });
-
-    if (is_ai_guest) {
-        const [rows] = await pool.execute(
-            'SELECT guest_phone, event_id FROM ai_guests WHERE guest_phone = ? AND event_id = ? LIMIT 1',
-            [phone_number, event_id]
-        );
-        if (rows.length > 0) {
-            return res.send({ message: "User already exists", status: 400 });
-        }
+    if (!phone_number) {
+        return res.send({ message: "Phone number is required",status:400 });
     }
-
-    const otp = generateOTP();
-
-    console.log("Generated OTP:", otp);
-
-    const message = `Hi ${name}, Your OTP is: ${otp}. It is valid for 5 minutes.`;
 
     try {
-        // Send SMS via Twilio
-        await client.messages.create({
-            body: message,
-            from: '+19713091748', // Official number
-            to: "+91" + phone_number
-        });
 
-        if (email) {
-            // Configure transporter
-            let transporter = nodemailer.createTransport({
-                service: 'gmail',
-                auth: {
-                    user: process.env.GMAIL,
-                    pass: process.env.APP_PASSWORD
-                }
+        const otp = generateOTP();
+        console.log("Generated OTP:", otp);
+
+        const message = `Hi ${name}, Your OTP is: ${otp}. It is valid for 5 minutes.`;
+
+        let smsSent = false;
+        let emailSent = false;
+
+        try {
+            await client.messages.create({
+                body: message,
+                from: '+19713091748',
+                to: "+91" + phone_number
             });
-
-            const mailOptions = {
-                from: process.env.GMAIL,
-                to: email,
-                subject: 'Your OTP Code from My Studio',
-                html: getOtpEmailTemplate(otp, name),
-            };
-
-            // Wrap sendMail in Promise to await it
-            await new Promise((resolve, reject) => {
-                transporter.sendMail(mailOptions, (error, info) => {
-                    if (error) {
-                        reject(error);
-                    } else {
-                        resolve(info);
-                    }
-                });
-            });
+            smsSent = true;
+        } catch (smsError) {
+            console.error("Failed to send OTP via SMS:", smsError);
         }
 
-        res.send({ message: "OTP sent via SMS and Email!", otp, status: 200 });
+        if (email) {
+            try {
+                const transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    auth: {
+                        user: process.env.GMAIL,
+                        pass: process.env.APP_PASSWORD
+                    }
+                });
+
+                const mailOptions = {
+                    from: process.env.GMAIL,
+                    to: email,
+                    subject: 'Your OTP Code from My Studio',
+                    html: getOtpEmailTemplate(otp, name),
+                };
+
+                await transporter.sendMail(mailOptions);
+                emailSent = true;
+            } catch (emailError) {
+                console.error("Failed to send OTP via Email:", emailError);
+            }
+        }
+
+        if (smsSent && emailSent) {
+            return res.send({ message: "OTP sent via SMS and Email!", otp, status: 200 });
+        } else if (smsSent) {
+            return res.send({ message: "OTP sent via SMS!", otp, status: 200 });
+        } else if (emailSent) {
+            return res.send({ message: "OTP sent via Email!", otp, status: 200 });
+        } else {
+            return res.send({ message: "Failed to send OTP via both SMS and Email", status: 500 });
+        }
 
     } catch (error) {
-        console.error("Error sending OTP:", error);
-        res.send({ message: "Failed to send OTP", status: 500 });
+        console.error("Unexpected error:", error);
+        return res.send({ message: "Internal server error", status: 500 });
     }
 };
-
 
 exports.verifyOTPForPinUser = async (req, res) => {
     try {
