@@ -3,8 +3,10 @@ const pool = require('../db_config/db.js'); // your MySQL connection
 exports.createEstimate = async (req, res) => {
     try {
         const { invoice_id, terms_and_conditions } = req.body;
-        if (!invoice_id || !terms_and_conditions) {
-            return res.status(400).json({ error: 'invoice_id and terms_and_conditions required' });
+        if (!terms_and_conditions) {
+            return res.send({ error: 'Terms and conditions is required', message:"Terms and conditions is required",status:400 });
+        }else if(!invoice_id){
+            return res.send({ error: 'Invoice id is required',message:"Invoice id is required",status:400 });
         }
 
         const [check] = await pool.execute(`SELECT id FROM estimates WHERE invoice_id = ?`, [invoice_id]);
