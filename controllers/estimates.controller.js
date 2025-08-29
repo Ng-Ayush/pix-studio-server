@@ -11,7 +11,7 @@ exports.createEstimate = async (req, res) => {
 
         const [check] = await pool.execute(`SELECT id FROM estimates WHERE invoice_id = ?`, [invoice_id]);
         if (check.length > 0) {
-            return res.status(400).json({ error: 'Estimate already exists for this invoice' });
+            return res.send({ error: 'Estimate already exists for this invoice', message:"Estimate already exists for this invoice",status:400   });
         }
 
        const [row] = await pool.execute(
@@ -22,7 +22,7 @@ exports.createEstimate = async (req, res) => {
         res.send({ message: 'Estimate created successfully',estimate_id:row.insertId , status:200 });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Internal server error' });
+        res.send({ error: 'Internal server error',message:err, status: 500 });
     }
 };
 
@@ -72,7 +72,7 @@ exports.convertToSales = async (req, res) => {
 
         const [check] = await pool.execute(`SELECT id FROM estimates WHERE invoice_id = ?`, [invoice_id]);
         if (check.length === 0) {
-            return res.status(404).json({ error: 'Estimate not found' });
+            return res.send({ error: 'Estimate not found', message:"Estimate not found",status:400   });
         }
 
         await pool.execute(
@@ -89,7 +89,7 @@ exports.convertToSales = async (req, res) => {
         res.send({ message: 'Estimate converted to sales successfully',status:200});
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Internal server error' });
+        res.send({ error: 'Internal server error',message: err.message, status: 500 });
     }
 };
 
