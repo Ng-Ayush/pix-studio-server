@@ -133,3 +133,67 @@ exports.insertImages = async (req, res) => {
         res.status(500).send({ error: 'Failed to insert Image', err: err });
     }
 };
+
+exports.createPromocode = async (req, res) => {
+    try {
+        const { code, discount_type, discount_value, valid_from='', valid_to='' } = req.body;
+        const [existingPromocode] = await pool.execute(
+            'SELECT * FROM promocodes WHERE code = ?',
+            [code]);
+        if (existingPromocode.length > 0) {
+            return res.send({ message: "Promocode already exists", status: 409 });
+        }
+        const [result] = await pool.execute(
+            'INSERT INTO promocodes (code, discount_type,discount_value,valid_from,valid_to) VALUES (?, ?, ? , ? ,? )',
+            [code, discount_type, discount_value, valid_from, valid_to]
+        );
+        res.send({ message: "Promocode created successfully", status: 200 });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: 'Internal server error', message: err.message, status: 500 });
+    }
+};
+
+exports.getAllPromocodes = async (req, res) => {
+    try {
+        const query = `SELECT * FROM promocodes ORDER BY id DESC`
+        const [promocodes] = await pool.execute(query);
+        res.send({ message: "promocodes fetched successfully", data: promocodes, status: 200 });
+    } catch (err) {
+        res.status(500).send({ error: 'Failed to fetch promocodes' });
+    }
+};
+
+exports.deletePromocode = async (req, res) => {
+    try {
+        const { id } = req.params;
+        await pool.execute('DELETE FROM promocodes WHERE id = ?', [id]);
+        res.send({ message: 'Promocode deleted successfully', status: 200 });
+    } catch (err) {
+        res.status(500).send({ error: 'Failed to delete promocode' });
+    }
+};
+
+
+
+// **** in future use ****
+exports.updatePromocode = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { code, discount } = req.body;
+        await pool.execute('UPDATE promocodes SET code = ?, discount = ? WHERE id = ?', [code, discount, id]);
+        res.send({ message: 'Promocode updated successfully', status: 200 });
+    } catch (err) {
+        res.status(500).send({ error: 'Failed to update promocode' });
+    }
+};
+
+exports.togglePromocodeStatus = async (req, res) => {
+    try {
+        const { status,promocode_id } = req.body;
+        await pool.execute('UPDATE promocodes SET is_active = ? WHERE id = ?', [status, promocode_id]);
+        res.send({ message: 'Promocode status updated successfully', status: 200 });
+    } catch (err) {
+        res.send({ error: 'Failed to update promocode status',message: err.message , status: 500 });
+    }
+};

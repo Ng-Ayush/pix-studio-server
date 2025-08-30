@@ -17,6 +17,7 @@ router.put('/updateCategory/:id',  adminController.updateCategory);
 router.delete('/deleteCategory/:id', adminController.deleteCategory);
 router.get('/getAllCategories',adminController.getAllCategories);
 router.get('/getFeaturesByNewArrival',adminController.getFeaturesByNewArrival);
+router.post("/verifyAndApplyPromoCode",adminController.verifyAndApplyPromoCode);
 
 
 module.exports = router;

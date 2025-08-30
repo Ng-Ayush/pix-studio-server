@@ -20,11 +20,11 @@ exports.getAllFeatures = async (req, res) => {
 
 exports.createFeatures = async (req, res) => {
     try {
-        let { category, drive_url, price, title, youtube_url,description ,is_new_arrival=false,youtube_thumbnail,is_unique_feature=false,is_purchased = false} = req.body;
+        let { category, drive_url, price, title, youtube_url, description, is_new_arrival = false, youtube_thumbnail, is_unique_feature = false, is_purchased = false, allow_promocode = false } = req.body;
 
         const [result] = await pool.execute(
-            'INSERT INTO manage_features (category, drive_url, price, title, youtube_url,description,is_new_arrival,youtube_thumbnail,is_unique_feature,is_purchased) VALUES (?, ?, ? ,?, ?, ?, ?, ?, ?,?)',
-            [category, drive_url, price, title, youtube_url,description, is_new_arrival,youtube_thumbnail,is_unique_feature,is_purchased]
+            'INSERT INTO manage_features (category, drive_url, price, title, youtube_url,description,is_new_arrival,youtube_thumbnail,is_unique_feature,is_purchased,allow_promocode) VALUES (?, ?, ? ,?, ?, ?, ?, ?, ?,?, ?)',
+            [category, drive_url, price, title, youtube_url, description, is_new_arrival, youtube_thumbnail, is_unique_feature, is_purchased, allow_promocode]
         );
 
         res.status(201).send({ message: "Feature created successfully", status: 200 });
@@ -50,12 +50,12 @@ exports.getFeatureById = async (req, res) => {
 
 exports.updateFeature = async (req, res) => {
     try {
-        let { category, drive_url, price, title, youtube_url,description, is_new_arrival,youtube_thumbnail,is_unique_feature,is_purchased=false } = req.body;
+        let { category, drive_url, price, title, youtube_url, description, is_new_arrival, youtube_thumbnail, is_unique_feature, is_purchased = false, allow_promocode = false } = req.body;
         const id = req.body.id;
 
         await pool.execute(
-            'UPDATE manage_features SET category = ?, drive_url = ?, price = ?, title = ?, youtube_url = ?,description = ?, is_new_arrival = ?, youtube_thumbnail = ?,is_unique_feature = ?, is_purchased = ?   WHERE id = ?',
-            [category, drive_url, price, title, youtube_url,description ,is_new_arrival,youtube_thumbnail,is_unique_feature,is_purchased, id]
+            'UPDATE manage_features SET category = ?, drive_url = ?, price = ?, title = ?, youtube_url = ?,description = ?, is_new_arrival = ?, youtube_thumbnail = ?,is_unique_feature = ?, is_purchased = ?,allow_promocode =?   WHERE id = ?',
+            [category, drive_url, price, title, youtube_url, description, is_new_arrival, youtube_thumbnail, is_unique_feature, is_purchased, allow_promocode, id]
         );
 
         res.send({ message: 'Feature updated successfully', status: 200 });
@@ -94,19 +94,19 @@ exports.createOrder = async (req, res) => {
             receipt: receipt || `receipt_${Date.now()}`,
         };
 
-        console.log(options);
+        // console.log(options);
 
         const order = await razorpay.orders.create(options);
         res.send({ message: 'Order created successfully', status: 200, data: order });
     } catch (err) {
         console.error(err);
-        res.send({ error: 'Internal server error', message: err.message, status: 500 });
+        res.send({ error: 'Internal server error', message: err?.error?.description, status: 500 });
     }
 };
 
 exports.verifyPayment = async (req, res) => {
     try {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature,feature_id,amount } = req.body;
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, feature_id, amount } = req.body;
 
         const body = razorpay_order_id + '|' + razorpay_payment_id;
         const expectedSignature = crypto
@@ -116,9 +116,9 @@ exports.verifyPayment = async (req, res) => {
 
         if (expectedSignature === razorpay_signature) {
 
-              const [features_payment] = await pool.execute(
+            const [features_payment] = await pool.execute(
                 'INSERT INTO features_payment (user_id,feature_id,payment_id,paid_at,amount) VALUES (?,?,?,?,?)',
-                [req.user.id, feature_id, razorpay_payment_id,new Date(),amount]
+                [req.user.id, feature_id, razorpay_payment_id, new Date(), amount]
             );
 
             const [manage_features] = await pool.execute(
@@ -126,7 +126,7 @@ exports.verifyPayment = async (req, res) => {
                 [feature_id]
             );
 
-            res.send({ status: 200, message: 'Payment verified successfully',features_payment,manage_features });
+            res.send({ status: 200, message: 'Payment verified successfully', features_payment, manage_features });
         } else {
             res.send({ status: 400, message: 'Invalid signature' });
         }
@@ -166,7 +166,7 @@ exports.getAllCategories = async (req, res) => {
 exports.getFeaturesByCategory = async (req, res) => {
     try {
         const { category } = req.params;
-        const query = `SELECT * FROM manage_features WHERE category = ? ORDER BY is_unique_feature DESC, updated_at DESC`;
+        const query = `SELECT fea.*,cat.category_name FROM manage_features fea LEFT JOIN categories cat ON fea.category = cat.category_id WHERE fea.category = ? ORDER BY fea.is_unique_feature DESC, fea.updated_at DESC`;
         const [features] = await pool.execute(query, [category]);
         res.send({ message: "features fetched successfully", data: features, status: 200 });
     } catch (err) {
@@ -176,7 +176,7 @@ exports.getFeaturesByCategory = async (req, res) => {
 
 exports.getFeaturesByNewArrival = async (req, res) => {
     try {
-        const query = `SELECT * FROM manage_features WHERE is_new_arrival = 1 ORDER BY is_unique_feature DESC, updated_at DESC`;
+        const query = `SELECT fea.*,cat.category_name FROM manage_features fea LEFT JOIN categories cat ON fea.category = cat.category_id WHERE fea.is_new_arrival = 1 ORDER BY fea.is_unique_feature DESC, fea.updated_at DESC`;
         const [features] = await pool.execute(query);
         res.send({ message: "features fetched successfully", data: features, status: 200 });
     } catch (err) {
@@ -187,7 +187,7 @@ exports.getFeaturesByNewArrival = async (req, res) => {
 exports.updateCategory = async (req, res) => {
     try {
         let { category_name, category_icon } = req.body;
-        const {id} = req.params;
+        const { id } = req.params;
         await pool.execute(
             'UPDATE categories SET category_name = ?, category_icon = ? WHERE category_id = ?',
             [category_name, category_icon, id]
@@ -208,3 +208,48 @@ exports.deleteCategory = async (req, res) => {
         res.status(500).send({ error: 'Failed to delete Category', erro: err });
     }
 };
+
+exports.verifyAndApplyPromoCode = async (req, res) => {
+    try {
+        const { promocode, feature_id } = req.body;
+        const [result] = await pool.execute(
+            'SELECT * FROM promocodes WHERE code = ? AND is_active = 1',
+            [promocode]
+        );
+
+        if (result.length > 0) {
+            const [feature] = await pool.execute(
+                'SELECT * FROM manage_features WHERE id = ?',
+                [feature_id]
+            );
+            const promoCodeValue = parseFloat(result[0].discount_value);
+            const featureAmount = feature[0].price;
+            const discountType = result[0].discount_type;
+            let discountAmount;
+
+            if (discountType === 'PERCENT') {
+                discountAmount = featureAmount * (promoCodeValue / 100);
+            } else if (discountType === 'FLAT') {
+                discountAmount = promoCodeValue;
+            }
+
+            if (discountAmount == featureAmount) {
+
+                const [manage_features] = await pool.execute(
+                    'UPDATE manage_features SET is_purchased = 1 WHERE id = ?',
+                    [feature_id]
+                );
+                res.send({ status: 200, message: 'Promocode applied successfully', isFullDiscount:true });
+            } else if (discountAmount < featureAmount) {
+                res.send({ status: 200, message: 'Promocode applied partially', isPartialDiscount:true, discountAmount });
+            } else {
+                res.send({ status: 400, message: 'Invalid promocode' });
+            }
+        } else {
+            res.send({ status: 400, message: 'Invalid promocode' });
+        }
+    } catch (error) {
+        console.error('Error verifying payment:', error);
+        res.send({ status: 500, message: 'Internal server error', error: 'Failed to verify payment' });
+    }
+}
