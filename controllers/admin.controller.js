@@ -136,7 +136,7 @@ exports.insertImages = async (req, res) => {
 
 exports.createPromocode = async (req, res) => {
     try {
-        const { code, discount_type, discount_value, valid_from='', valid_to='' } = req.body;
+        const { code, discount_type, discount_value, valid_from=null, valid_to=null } = req.body;
         const [existingPromocode] = await pool.execute(
             'SELECT * FROM promocodes WHERE code = ?',
             [code]);
