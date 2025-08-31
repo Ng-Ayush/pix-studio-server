@@ -7,7 +7,7 @@ router.get('/getAllFeatures',adminController.getAllFeatures);
 router.post('/createFeatures', adminController.createFeatures);
 router.post('/onImgUpload', adminController.onImgUpload);
 router.get('/getFeatureById/:id',adminController.getFeatureById);
-router.get('/getFeaturesByCategory/:category',adminController.getFeaturesByCategory);
+router.get('/getFeaturesByCategory/:category',authMiddleware,adminController.getFeaturesByCategory);
 router.put('/updateFeature',  adminController.updateFeature);
 router.delete('/deleteFeatures/:id', adminController.deleteFeatures);
 router.post("/create-order",adminController.createOrder);
@@ -16,8 +16,9 @@ router.post("/createCategory",adminController.createCategory);
 router.put('/updateCategory/:id',  adminController.updateCategory);
 router.delete('/deleteCategory/:id', adminController.deleteCategory);
 router.get('/getAllCategories',adminController.getAllCategories);
-router.get('/getFeaturesByNewArrival',adminController.getFeaturesByNewArrival);
+router.get('/getFeaturesByNewArrival',authMiddleware,adminController.getFeaturesByNewArrival);
 router.post("/verifyAndApplyPromoCode",adminController.verifyAndApplyPromoCode);
+router.get("/getFeatureListByUserId",authMiddleware,adminController.getFeatureListByUserId);
 
 
 module.exports = router;

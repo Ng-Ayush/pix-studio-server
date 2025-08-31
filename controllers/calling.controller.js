@@ -10,10 +10,24 @@ async function getAuthToken() {
 }
 
 exports.addAgent = async (req, res) => {
-    const { agent_name, agent_phone, email, extension_number } = req.body;
+    const { agent_name, agent_phone, email } = req.body;
 
     try {
-        // 🔹 Check for duplicate phone or extension in DB
+        const [lastExtension] = await pool.query(
+            'SELECT extension_number FROM callings ORDER BY id DESC LIMIT 1'
+        );
+
+        let extension_number;
+        console.log(lastExtension);
+        
+        if (lastExtension[0] && lastExtension[0].extension_number) {
+            const lastExtensionNumber = parseInt(lastExtension[0].extension_number);
+            extension_number = String(lastExtensionNumber + 1).padStart(3, '0');
+        } else {
+            extension_number = '001';
+        }
+
+
         const [existing] = await pool.query(
             'SELECT * FROM callings WHERE agent_phone = ? OR extension_number = ?',
             [agent_phone, extension_number]
@@ -28,10 +42,8 @@ exports.addAgent = async (req, res) => {
             });
         }
 
-        // 🔹 Fetch token
         let data = await getAuthToken();
 
-        // 🔹 Add Agent function
         const callAddAgent = async (token) => {
             const response = await axios.post(
                 "https://ivr.voicensms.in:5004/api/AddAgent",
@@ -44,7 +56,7 @@ exports.addAgent = async (req, res) => {
                 },
                 { headers: { Authorization: token } }
             );
-            return response.data; // return response body directly
+            return response.data; 
         };
 
         let apiResponse;
@@ -67,14 +79,13 @@ exports.addAgent = async (req, res) => {
             }
         }
 
-        console.log("apiResponse",apiResponse);
-        
+
 
         // 🔹 Handle API response
         if (typeof apiResponse == "string" && apiResponse.includes("Successfully")) {
             await pool.query(
                 'INSERT INTO callings (agent_name, agent_phone, extension_number,pilot_number,email, created_by) VALUES (?, ?, ?, ?, ?, ?)',
-                [agent_name, agent_phone, extension_number,data.user.bizfoneno,email, req.user.id]
+                [agent_name, agent_phone, extension_number, data.user.bizfoneno, email, req.user.id]
             );
             return res.send({ message: 'Agent added successfully', status: 200 });
         }
@@ -95,6 +106,10 @@ exports.addAgent = async (req, res) => {
 
 
 exports.getAgents = async (req, res) => {
-    const [rows] = await pool.query('SELECT * FROM callings WHERE created_by = ?', [req.user.id]);
-    res.send({ message: "Agents fetched successfully", data: rows, status: 200 });
+    try {
+        const [rows] = await pool.query('SELECT * FROM callings WHERE created_by = ?', [req.user.id]);
+        res.send({ message: "Agents fetched successfully", data: rows, status: 200 });
+    } catch (error) {
+        res.send({ message: 'Something went wrong', error: error, status: 400 });        
+    }
 };

@@ -121,12 +121,12 @@ exports.verifyPayment = async (req, res) => {
                 [req.user.id, feature_id, razorpay_payment_id, new Date(), amount]
             );
 
-            const [manage_features] = await pool.execute(
-                'UPDATE manage_features SET is_purchased = 1 WHERE id = ?',
-                [feature_id]
-            );
+            // const [manage_features] = await pool.execute(
+            //     'UPDATE manage_features SET is_purchased = 1 WHERE id = ?',
+            //     [feature_id]
+            // );
 
-            res.send({ status: 200, message: 'Payment verified successfully', features_payment, manage_features });
+            res.send({ status: 200, message: 'Payment verified successfully', features_payment });
         } else {
             res.send({ status: 400, message: 'Invalid signature' });
         }
@@ -166,8 +166,24 @@ exports.getAllCategories = async (req, res) => {
 exports.getFeaturesByCategory = async (req, res) => {
     try {
         const { category } = req.params;
-        const query = `SELECT fea.*,cat.category_name FROM manage_features fea LEFT JOIN categories cat ON fea.category = cat.category_id WHERE fea.category = ? ORDER BY fea.is_unique_feature DESC, fea.updated_at DESC`;
-        const [features] = await pool.execute(query, [category]);
+        const query = `
+            SELECT 
+                fea.*, 
+                cat.category_name, 
+                fp.feature_id AS is_feature_purchased
+            FROM 
+                manage_features fea 
+            LEFT JOIN 
+                categories cat ON fea.category = cat.category_id
+            LEFT JOIN 
+                features_payment fp ON fea.id = fp.feature_id AND fp.user_id = ?
+            WHERE 
+                fea.category = ? 
+            ORDER BY 
+                fea.is_unique_feature DESC, 
+                fea.updated_at DESC
+        `;
+        const [features] = await pool.execute(query, [req.user.id, category]);
         res.send({ message: "features fetched successfully", data: features, status: 200 });
     } catch (err) {
         res.status(500).send({ error: 'Failed to fetch features' });
@@ -176,11 +192,27 @@ exports.getFeaturesByCategory = async (req, res) => {
 
 exports.getFeaturesByNewArrival = async (req, res) => {
     try {
-        const query = `SELECT fea.*,cat.category_name FROM manage_features fea LEFT JOIN categories cat ON fea.category = cat.category_id WHERE fea.is_new_arrival = 1 ORDER BY fea.is_unique_feature DESC, fea.updated_at DESC`;
-        const [features] = await pool.execute(query);
+        const query = `
+            SELECT 
+                fea.*, 
+                cat.category_name, 
+                fp.feature_id AS is_feature_purchased
+            FROM 
+                manage_features fea 
+            LEFT JOIN 
+                categories cat ON fea.category = cat.category_id
+            LEFT JOIN 
+                features_payment fp ON fea.id = fp.feature_id AND fp.user_id = ?
+            WHERE 
+                fea.is_new_arrival = 1 
+            ORDER BY 
+                fea.is_unique_feature DESC, 
+                fea.updated_at DESC
+        `;
+        const [features] = await pool.execute(query, [req.user.id]);
         res.send({ message: "features fetched successfully", data: features, status: 200 });
     } catch (err) {
-        res.status(500).send({ error: 'Failed to fetch features' });
+        res.status(500).send({ error: 'Failed to fetch features',err });
     }
 };
 
@@ -239,9 +271,9 @@ exports.verifyAndApplyPromoCode = async (req, res) => {
                     'UPDATE manage_features SET is_purchased = 1 WHERE id = ?',
                     [feature_id]
                 );
-                res.send({ status: 200, message: 'Promocode applied successfully', isFullDiscount:true });
+                res.send({ status: 200, message: 'Promocode applied successfully', isFullDiscount: true });
             } else if (discountAmount < featureAmount) {
-                res.send({ status: 200, message: 'Promocode applied partially', isPartialDiscount:true, discountAmount });
+                res.send({ status: 200, message: 'Promocode applied partially', isPartialDiscount: true, discountAmount });
             } else {
                 res.send({ status: 400, message: 'Invalid promocode' });
             }
@@ -253,3 +285,18 @@ exports.verifyAndApplyPromoCode = async (req, res) => {
         res.send({ status: 500, message: 'Internal server error', error: 'Failed to verify payment' });
     }
 }
+exports.getFeatureListByUserId = async (req, res) => {
+    console.log("DSHDKJSD", req.user.id);
+
+    try {
+        const query = `
+            SELECT mf.*, fp.feature_id AS is_feature_purchased
+            FROM manage_features mf
+            LEFT JOIN features_payment fp ON mf.id = fp.feature_id AND fp.user_id = ?
+        `;
+        const [features] = await pool.execute(query, [req.user.id]);
+        res.send({ message: "features fetched successfully", data: features, status: 200 });
+    } catch (err) {
+        res.status(500).send({ error: 'Failed to fetch features' });
+    }
+};
