@@ -267,10 +267,16 @@ exports.verifyAndApplyPromoCode = async (req, res) => {
 
             if (discountAmount == featureAmount) {
 
-                const [manage_features] = await pool.execute(
-                    'UPDATE manage_features SET is_purchased = 1 WHERE id = ?',
-                    [feature_id]
-                );
+                // const [manage_features] = await pool.execute(
+                //     'UPDATE manage_features SET is_purchased = 1 WHERE id = ?',
+                //     [feature_id]
+                // );
+
+                  const [features_payment] = await pool.execute(
+                'INSERT INTO features_payment (user_id,feature_id,payment_id,paid_at,amount) VALUES (?,?,?,?,?)',
+                [req.user.id, feature_id, razorpay_payment_id='', new Date(), discountAmount]
+            );
+
                 res.send({ status: 200, message: 'Promocode applied successfully', isFullDiscount: true });
             } else if (discountAmount < featureAmount) {
                 res.send({ status: 200, message: 'Promocode applied partially', isPartialDiscount: true, discountAmount });

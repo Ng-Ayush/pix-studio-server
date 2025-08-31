@@ -17,7 +17,7 @@ router.put('/updateCategory/:id',  adminController.updateCategory);
 router.delete('/deleteCategory/:id', adminController.deleteCategory);
 router.get('/getAllCategories',adminController.getAllCategories);
 router.get('/getFeaturesByNewArrival',authMiddleware,adminController.getFeaturesByNewArrival);
-router.post("/verifyAndApplyPromoCode",adminController.verifyAndApplyPromoCode);
+router.post("/verifyAndApplyPromoCode",authMiddleware,adminController.verifyAndApplyPromoCode);
 router.get("/getFeatureListByUserId",authMiddleware,adminController.getFeatureListByUserId);
 
 
