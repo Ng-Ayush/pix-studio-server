@@ -45,7 +45,7 @@ exports.getAllEvents = async (req, res) => {
     e.is_event_submitted,
     COUNT(DISTINCT f.id) AS folder_count,
     COUNT(DISTINCT p.id) AS photo_count,
-    COUNT(DISTINCT ps.id) AS selected_photo_count,
+    SUM(CASE WHEN p.is_selected = TRUE THEN 1 ELSE 0 END) AS selected_photo_count,
     cus.id AS customer_id,
     cus.name AS customer_name,
     cus.phone AS customer_phone,
@@ -53,7 +53,6 @@ exports.getAllEvents = async (req, res) => {
 FROM events e
 LEFT JOIN folders f ON f.event_id = e.id
 LEFT JOIN photos p ON p.folder_id = f.id
-LEFT JOIN photo_selections ps ON ps.photo_id = p.id
 LEFT JOIN customers cus ON cus.id = e.customer_id
 WHERE e.created_by = ?
 GROUP BY e.id
