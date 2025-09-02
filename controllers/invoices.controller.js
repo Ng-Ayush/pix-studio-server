@@ -11,32 +11,29 @@ exports.generateInvoice = async (req, res) => {
     const value = [invoice_number, invoice_date, due_date, party_id, 'Estimate Order', total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number, discount_value, discount_type, req.user.id];
     const [result] = await pool.execute(
       `INSERT INTO invoices (invoice_number,invoice_date,due_date,party_id,status,total,balance_left,invoice_type,payment_type,payment_type_description,invoice_items,time,phone_number,discount_value,discount_type,created_by) 
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, value
-    );
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, value);
+       try {
+        const { terms_and_condition } = req.body;
+        const invoice_id = result.insertId;
+        if (!terms_and_condition) {
+            return res.send({ error: 'Terms and conditions is required', message:"Terms and conditions is required",status:400 });
+        }else if(!invoice_id){
+            return res.send({ error: 'Invoice id is required',message:"Invoice id is required",status:400 });
+        }
 
-    for (const item of JSON.parse(invoice_items)) {
-      const { id: id, booking_date, location } = item;
+        const [check] = await pool.execute(`SELECT id FROM estimates WHERE invoice_id = ?`, [invoice_id]);
+        if (check.length > 0) {
+            return res.send({ error: 'Estimate already exists for this invoice', message:"Estimate already exists for this invoice",status:400   });
+        }
 
-      const updateFields = [];
-      const values = [];
-
-      // if (booking_date) {
-      //   updateFields.push(`booking_date = ?`);
-      //   values.push(booking_date);
-      // }
-
-      // if (location) {
-      //   updateFields.push(`location = ?`);
-      //   values.push(location);
-      // }
-
-      // if (updateFields.length > 0) {
-      //   values.push(id); // WHERE id = ?
-      //   const query = `UPDATE invoice_items SET ${updateFields.join(', ')} WHERE id = ?`;
-      //   await pool.execute(query, values);
-      // }
+       const [row] = await pool.execute(
+            `INSERT INTO estimates (invoice_id, terms_and_conditions,created_by) VALUES (?, ?, ?)`,
+            [invoice_id, terms_and_condition, req.user.id]
+        );
+    } catch (err) {
+        console.error(err);
+        res.send({ error: 'Internal server error',message:err, status: 500 });
     }
-
     res.send({ message: 'Invoice created', status: 200, id: result.insertId });
   } catch (err) {
     res.status(500).json({ error: err.message, err: err });
@@ -220,7 +217,7 @@ WHERE invoice_number = ?`
 // UPDATE 
 exports.updateInvoice = async (req, res) => {
   const { id } = req.params;
-  const { invoice_number, invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type = '', payment_type_description = '', invoice_items, time, phone_number, discount_value = '', discount_type = '' } = req.body;
+  const { invoice_number, invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type = '', payment_type_description = '', invoice_items, time, phone_number, discount_value = '', discount_type = '', terms_and_condition } = req.body;
 
   try {
     const query = `UPDATE invoices SET invoice_date = ?, due_date = ?, party_id = ?, status = ?,
@@ -229,27 +226,19 @@ exports.updateInvoice = async (req, res) => {
     const value = [invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number, discount_value, discount_type, invoice_number];
     const [result] = await pool.execute(query, value);
 
-    for (const item of JSON.parse(invoice_items)) {
-      const { id: id, booking_date, location } = item;
-
-      const updateFields = [];
-      const values = [];
-
-      // if (booking_date) {
-      //   updateFields.push(`booking_date = ?`);
-      //   values.push(booking_date);
-      // }
-
-      // if (location) {
-      //   updateFields.push(`location = ?`);
-      //   values.push(location);
-      // }
-
-      // if (updateFields.length > 0) {
-      //   values.push(id); // WHERE id = ?
-      //   const query = `UPDATE invoice_items SET ${updateFields.join(', ')} WHERE id = ?`;
-      //   await pool.execute(query, values);
-      // }
+    if (terms_and_condition) {
+      const [check] = await pool.execute(`SELECT id FROM estimates WHERE invoice_id = ?`, [id]);
+      if (check.length > 0) {
+        const [row] = await pool.execute(
+          `UPDATE estimates SET terms_and_conditions = ? WHERE invoice_id = ?`,
+          [terms_and_condition, id]
+        );
+      } else {
+        const [row] = await pool.execute(
+          `INSERT INTO estimates (invoice_id, terms_and_conditions,created_by) VALUES (?, ?, ?)`,
+          [id, terms_and_condition, req.user.id]
+        );
+      }
     }
 
     res.json({ message: 'Invoice updated', status: 200 });
