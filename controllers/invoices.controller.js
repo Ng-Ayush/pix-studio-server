@@ -263,9 +263,9 @@ exports.deleteInvoice = async (req, res) => {
   const { id } = req.params;
   try {
     const [result] = await pool.execute('DELETE FROM invoices WHERE id = ?', [id]);
-    res.json({ message: 'Invoices deleted', status: 200 });
+    res.send({ message: 'Invoices deleted', status: 200 });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.send({ error: err.message,message:"Something Went wrong", status:500 });
   }
 };
 

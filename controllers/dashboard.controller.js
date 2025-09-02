@@ -61,6 +61,7 @@ exports.getCalendarEvents = async (req, res) => {
         cus.phone_number AS party_phone_number,
         inv.id    AS invoice_id,
         CAST(JSON_UNQUOTE(JSON_EXTRACT(inv.invoice_items, CONCAT('$[', seq.idx, '].id'))) AS UNSIGNED) AS item_id,
+        CAST(JSON_UNQUOTE(JSON_EXTRACT(inv.invoice_items, CONCAT('$[', seq.idx, '].location'))) AS CHAR) AS location,
          ii.item_name,
          ii.description
       FROM invoices inv
