@@ -7,6 +7,5 @@ router.post('/register', authController.register);
 router.post('/login', authController.login);
 
 router.post("/getOTPForPinUser",userController.verifyPinUser);
-// router.post("/verifyOTPForPinUser",authController.verifyOTPForPinUser);
 
 module.exports = router;

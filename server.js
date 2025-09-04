@@ -5,6 +5,11 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const path = require("path");
 const fs = require("fs");
+const cluster = require('cluster');
+const numCPUs = require('os').cpus().length;
+const scheduleAdminExpiryCheck = require('./utils/cron.js');
+scheduleAdminExpiryCheck();
+
 // Create upload directory
 const uploadDirectory = path.join(__dirname, "public/uploads");
 if (!fs.existsSync(uploadDirectory)) fs.mkdirSync(uploadDirectory);
@@ -32,12 +37,23 @@ app.use("/api/mystudio/manage-profile", require("./routes/manageProfileRoute.js"
 app.use("/api/mystudio/calling", require("./routes/calling.routes.js"));
 
 
-app.get("/", (req, res) => {
-    res.send({data:[{name:"test"}]});
-})
-// app.use('/api/mystudio/files', require('./routes/file.routes.js'));
+if (cluster.isMaster) {
+  console.log(`Master ${process.pid} is running`);
 
-// Start server
-const PORT = process.env.PORT || 3000;
+  for (let i = 0; i < numCPUs; i++) {
+    cluster.fork();
+  }
 
-app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
+  cluster.on('exit', (worker, code, signal) => {
+    console.log(`worker ${worker.process.pid} died`);
+  });
+} else {
+  // Start server
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, '0.0.0.0', () => console.log(`Worker ${process.pid} started on port ${PORT}`));
+
+    app.use((req, res, next) => {
+    console.log(`Worker ${process.pid} is handling ${req.method} ${req.url}`);
+    next();
+  });
+};

@@ -26,7 +26,6 @@ exports.createCustomer = async (req, res) => {
 // READ ALL
 exports.getAllCustomers = async (req, res) => {
   try {
-    console.log("rewqwqwq urse", req.user.id)
     const query = `SELECT bc.*,invc.total,invc.balance_left,invc.invoice_type FROM billing_customer bc  LEFT JOIN invoices invc ON bc.id = invc.party_id WHERE bc.created_by = ? ORDER BY bc.party_name ASC`;
     const [rows] = await pool.execute(query, [req.user.id]);
 

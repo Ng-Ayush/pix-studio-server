@@ -30,7 +30,7 @@ exports.getAllUsers = async (req, res) => {
 
 exports.createUsers = async (req, res) => {
     try {
-        let { studio_name, email, phone_number, role, youtube_url, instagram_url, facebook_url, address, studio_icon } = req.body;
+        let { studio_name, email, phone_number, role, youtube_url, instagram_url, facebook_url, address, studio_icon, access_expires_on = null } = req.body;
         const [existingUser] = await pool.execute(
             'SELECT * FROM users WHERE email = ?',
             [email]);
@@ -40,8 +40,8 @@ exports.createUsers = async (req, res) => {
         pin = Math.floor(100000 + Math.random() * 900000);
 
         const [result] = await pool.execute(
-            'INSERT INTO users (studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, pin,address,studio_icon) VALUES (?, ?, ? ,?, ?, ?, ?, ?, ?, ?)',
-            [studio_name, email, phone_number, role, youtube_url, instagram_url, facebook_url, pin, address, studio_icon]
+            'INSERT INTO users (studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, pin,address,studio_icon,access_expires_on) VALUES (?, ? , ?, ? ,?, ?, ?, ?, ?, ?, ?)',
+            [studio_name, email, phone_number, role, youtube_url, instagram_url, facebook_url, pin, address, studio_icon,access_expires_on]
         );
 
         res.send({ message: "Admin created successfully", status: 200 });
@@ -50,7 +50,6 @@ exports.createUsers = async (req, res) => {
         res.status(500).send({ error: 'Internal server error', message: err.message, status: 500 });
     }
 };
-
 
 exports.getUsersById = async (req, res) => {
     try {
@@ -69,11 +68,11 @@ exports.getUsersById = async (req, res) => {
 
 exports.updateUsers = async (req, res) => {
     try {
-        let { studio_name, email, phone_number, youtube_url, instagram_url, facebook_url, address, studio_icon, role, id } = req.body;
+        let { studio_name, email, phone_number, youtube_url, instagram_url, facebook_url, address, studio_icon, role,access_expires_on = null, id } = req.body;
 
         await pool.execute(
-            'UPDATE users SET studio_name = ?, email = ?,phone_number = ?, youtube_url = ?, instagram_url = ? , facebook_url =?,address = ? , studio_icon = ?, role = ?  WHERE id = ?',
-            [studio_name, email, phone_number, youtube_url, instagram_url, facebook_url, address, studio_icon, role, id]
+            'UPDATE users SET studio_name = ?, email = ?,phone_number = ?, youtube_url = ?, instagram_url = ? , facebook_url =?,address = ? , studio_icon = ?, role = ?, access_expires_on = ?   WHERE id = ?',
+            [studio_name, email, phone_number, youtube_url, instagram_url, facebook_url, address, studio_icon, role,access_expires_on, id]
         );
 
         res.send({ message: 'User updated successfully', status: 200 });
