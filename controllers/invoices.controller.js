@@ -100,17 +100,8 @@ exports.getInvoiceById = async (req, res) => {
       const staticItem = staticItemsMap[jsonItem.id] || {};
       return {
         id: jsonItem.id,
-        booking_date: jsonItem.booking_date,     // from JSON
-        location: jsonItem.location,             // from JSON
         item_name: staticItem.item_name,
-        description: staticItem.item_description,
-        sale_price: staticItem.sale_price,
-        amount: staticItem.amount,
-        quantity: staticItem.quantity,
-        item_code: staticItem.item_code,
-        item_stock: staticItem.item_stock,
-        created_at: staticItem.created_at,
-        created_by: staticItem.created_by
+        ...jsonItem
       };
     });
 
@@ -170,22 +161,16 @@ WHERE invoice_number = ? AND inv.created_by = ?`;
       staticItemsMap[row.id] = row;
     });
 
+    console.log("GOT HER ",invoiceItemsArray);
+    
+
     // Step 4: Merge JSON data with static data for response
     const mergedInvoiceItems = invoiceItemsArray.map(jsonItem => {
       const staticItem = staticItemsMap[jsonItem.id] || {};
       return {
         id: jsonItem.id,
-        booking_date: jsonItem.booking_date,     // from JSON
-        location: jsonItem.location,             // from JSON
         item_name: staticItem.item_name,
-        description: staticItem.item_description,
-        sale_price: staticItem.sale_price,
-        amount: staticItem.amount,
-        quantity: staticItem.quantity,
-        item_code: staticItem.item_code,
-        item_stock: staticItem.item_stock,
-        created_at: staticItem.created_at,
-        created_by: staticItem.created_by
+        ...jsonItem
       };
     });
 
@@ -225,6 +210,8 @@ exports.updateInvoice = async (req, res) => {
         total = ?, balance_left = ?, invoice_type = ?, payment_type = ?, payment_type_description = ?, invoice_items = ?, time = ?, phone_number = ?, discount_value = ?, discount_type = ?
        WHERE invoice_number = ?`;
     const value = [invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number, discount_value, discount_type, invoice_number];
+    console.log("INVIVD",);
+    
     const [result] = await pool.execute(query, value);
 
     if (terms_and_condition) {
