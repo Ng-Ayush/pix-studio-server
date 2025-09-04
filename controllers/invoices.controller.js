@@ -5,39 +5,40 @@ const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
 exports.generateInvoice = async (req, res) => {
   let { invoice_number, invoice_date, due_date, party_id, total, balance_left, invoice_type, payment_type = '', payment_type_description = '', invoice_items, time, phone_number, discount_value = '', discount_type = '' } = req.body;
 
-
   try {
+    // Check if terms and conditions are provided
+    if (!req.body.terms_and_condition) {
+      return res.send({ error: 'Terms and conditions is required', message: "Terms and conditions is required", status: 400 });
+    }
 
     const value = [invoice_number, invoice_date, due_date, party_id, 'Estimate Order', total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number, discount_value, discount_type, req.user.id];
     const [result] = await pool.execute(
       `INSERT INTO invoices (invoice_number,invoice_date,due_date,party_id,status,total,balance_left,invoice_type,payment_type,payment_type_description,invoice_items,time,phone_number,discount_value,discount_type,created_by) 
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, value);
-       try {
-        const { terms_and_condition } = req.body;
-        const invoice_id = result.insertId;
-        if (!terms_and_condition) {
-            return res.send({ error: 'Terms and conditions is required', message:"Terms and conditions is required",status:400 });
-        }else if(!invoice_id){
-            return res.send({ error: 'Invoice id is required',message:"Invoice id is required",status:400 });
-        }
 
-        const [check] = await pool.execute(`SELECT id FROM estimates WHERE invoice_id = ?`, [invoice_id]);
-        if (check.length > 0) {
-            return res.send({ error: 'Estimate already exists for this invoice', message:"Estimate already exists for this invoice",status:400   });
-        }
+    // Create estimate
+    const [row] = await pool.execute(
+      `INSERT INTO estimates (invoice_id, terms_and_conditions,created_by) VALUES (?, ?, ?)`,
+      [result.insertId, req.body.terms_and_condition, req.user.id]
+    );
 
-       const [row] = await pool.execute(
-            `INSERT INTO estimates (invoice_id, terms_and_conditions,created_by) VALUES (?, ?, ?)`,
-            [invoice_id, terms_and_condition, req.user.id]
-        );
-    } catch (err) {
-        console.error(err);
-        res.send({ error: 'Internal server error',message:err, status: 500 });
-    }
     res.send({ message: 'Invoice created', status: 200, id: result.insertId });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message, err: err });
   }
+};
+
+// Helper function to check if invoice id is provided
+const checkInvoiceId = async (invoice_number) => {
+  const [rows] = await pool.execute(`SELECT id FROM invoices WHERE invoice_number = ?`, [invoice_number]);
+  return rows.length > 0 ? rows[0].id : null;
+};
+
+// Helper function to check if estimate already exists for this invoice
+const checkEstimateExists = async (invoice_id) => {
+  const [rows] = await pool.execute(`SELECT id FROM estimates WHERE invoice_id = ?`, [invoice_id]);
+  return rows.length > 0;
 };
 
 // READ ALL
@@ -63,18 +64,18 @@ exports.getPastPayments = async (req, res) => {
 
 // READ BY ID
 exports.getInvoiceById = async (req, res) => {
-  const { id } = req.params;
+  const { invoice_number } = req.params;
   try {
     const query = `SELECT inv.*,inv.id AS invoice_id, bc.party_name,bc.phone_number AS party_phone_number, est.id AS estimate_id, est.terms_and_conditions, est.status as estimate_status
-FROM invoices inv 
-  LEFT JOIN billing_customer bc
-  ON inv.party_id = bc.id
-  LEFT JOIN estimates est
-  ON inv.id = est.invoice_id
-WHERE inv.id = ? AND inv.created_by = ?`;
+  FROM invoices inv 
+    LEFT JOIN billing_customer bc
+    ON inv.party_id = bc.id
+    LEFT JOIN estimates est
+    ON inv.id = est.invoice_id
+  WHERE inv.invoice_number = ? AND inv.created_by = ?`;
 
-    const [rows] = await pool.execute(query, [id,req.user.id]);
-    if (rows.length === 0) return res.json({ message: 'Invoice not found',status:400 });
+    const [rows] = await pool.execute(query, [invoice_number, req.user.id]);
+    if (rows.length === 0) return res.json({ message: 'Invoice not found', status: 400 });
 
     const invoice = rows[0];
     const invoiceItemsArray = JSON.parse(invoice.invoice_items || "[]");
@@ -147,9 +148,9 @@ exports.getInvoiceDetailByInvoiceNumber = async (req, res) => {
   try {
     const query = `SELECT inv.*, inv.id AS invoice_id
 FROM invoices inv
-WHERE invoice_number = ?`
-    const [rows] = await pool.execute(query, [id]);
-    if (rows.length === 0) return res.json({ message: 'Invoice not found',status:400 });
+WHERE invoice_number = ? AND inv.created_by = ?`;
+    const [rows] = await pool.execute(query, [id, req.user.id]);
+    if (rows.length === 0) return res.json({ message: 'Invoice not found', status: 400 });
 
     const invoice = rows[0];
     const invoiceItemsArray = JSON.parse(invoice.invoice_items || "[]");
@@ -254,7 +255,7 @@ exports.deleteInvoice = async (req, res) => {
     const [result] = await pool.execute('DELETE FROM invoices WHERE id = ?', [id]);
     res.send({ message: 'Invoices deleted', status: 200 });
   } catch (err) {
-    res.send({ error: err.message,message:"Something Went wrong", status:500 });
+    res.send({ error: err.message, message: "Something Went wrong", status: 500 });
   }
 };
 
@@ -264,10 +265,10 @@ exports.saveAdvancePayment = async (req, res) => {
     const query = `INSERT INTO invoice_payments (invoice_id,party_id,method,amount_paid,note) VALUES (?,?,?,?,?)`;
     const value = [invoice_id, party_id, method, amount_paid, note];
     const [result] = await pool.execute(query, value);
-    const [invoiceRow] = await pool.execute(  `UPDATE invoices
+    const [invoiceRow] = await pool.execute(`UPDATE invoices
        SET balance_left = balance_left - ?
        WHERE id = ?`,
-      [amount_paid, invoice_id]);  ;
+      [amount_paid, invoice_id]);;
 
 
     res.send({ message: 'Advance payment saved', status: 200 });
@@ -279,7 +280,7 @@ exports.saveAdvancePayment = async (req, res) => {
 exports.getLastInvoiceNumber = async (req, res) => {
   try {
     const [rows] = await pool.execute(
-      'SELECT invoice_number as lastId FROM invoices ORDER BY id DESC LIMIT 1'
+      'SELECT invoice_number as lastId FROM invoices WHERE created_by = ? ORDER BY id DESC LIMIT 1', [req.user.id]
     );
 
     const lastId = rows.length > 0 ? rows[0].lastId : 0; // ✅ safe check

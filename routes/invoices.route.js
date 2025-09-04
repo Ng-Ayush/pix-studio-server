@@ -5,7 +5,7 @@ const authMiddleware = require('../middlewares/auth.middleware.js');
 
 router.post('/generateInvoice',authMiddleware, invoiceController.generateInvoice);
 router.get('/getAllInvoices', authMiddleware,invoiceController.getAllInvoices);
-router.get('/getInvoiceById/:id', authMiddleware,invoiceController.getInvoiceById);
+router.get('/getInvoiceById/:invoice_number', authMiddleware,invoiceController.getInvoiceById);
 router.put('/updateInvoice/:id',authMiddleware, invoiceController.updateInvoice);
 router.delete('/deleteInvoice/:id', authMiddleware,invoiceController.deleteInvoice);
 router.get('/getInvoiceDetailByInvoiceNumber/:id',authMiddleware, invoiceController.getInvoiceDetailByInvoiceNumber);
