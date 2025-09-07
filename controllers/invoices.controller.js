@@ -225,18 +225,17 @@ WHERE invoice_number = ? AND inv.created_by = ?`;
     try {
       const query = `UPDATE invoices SET invoice_date = ?, due_date = ?, party_id = ?, status = ?,
         total = ?, balance_left = ?, invoice_type = ?, payment_type = ?, payment_type_description = ?, invoice_items = ?, time = ?, phone_number = ?, discount_value = ?, discount_type = ?
-       WHERE invoice_number = ?`;
-      const value = [invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number, discount_value, discount_type, invoice_number];
-      console.log("INVIVD",);
+       WHERE id = ? AND created_by = ?`;
+      const value = [invoice_date, due_date, party_id, status, total, balance_left, invoice_type, payment_type, payment_type_description, invoice_items, time, phone_number, discount_value, discount_type, id, req.user.id];
 
       const [result] = await pool.execute(query, value);
 
       if (terms_and_condition) {
-        const [check] = await pool.execute(`SELECT id FROM estimates WHERE invoice_id = ?`, [id]);
+        const [check] = await pool.execute(`SELECT id FROM estimates WHERE invoice_id = ? AND created_by = ?`, [id,req.user.id]);
         if (check.length > 0) {
           const [row] = await pool.execute(
-            `UPDATE estimates SET terms_and_conditions = ? WHERE invoice_id = ?`,
-            [terms_and_condition, id]
+            `UPDATE estimates SET terms_and_conditions = ? WHERE invoice_id = ? AND created_by = ? `,
+            [terms_and_condition, id, req.user.id]
           );
         } else {
           const [row] = await pool.execute(

@@ -70,20 +70,20 @@ exports.convertToSales = async (req, res) => {
     try {
         const { invoice_id } = req.params;
 
-        const [check] = await pool.execute(`SELECT id FROM estimates WHERE invoice_id = ?`, [invoice_id]);
+        const [check] = await pool.execute(`SELECT id FROM estimates WHERE invoice_id = ? AND created_by = ?`, [invoice_id, req.user.id]);
         if (check.length === 0) {
             return res.send({ error: 'Estimate not found', message:"Estimate not found",status:400   });
         }
 
         await pool.execute(
-            `UPDATE estimates SET status = 'converted' WHERE invoice_id = ?`,
-            [invoice_id]
+            `UPDATE estimates SET status = 'converted' WHERE invoice_id = ? AND created_by = ?`,
+            [invoice_id,req.user.id]
         );
 
         // Optional: Update invoice status
         await pool.execute(
-            `UPDATE invoices SET invoice_type = 'sale' WHERE id = ?`,
-            [invoice_id]
+            `UPDATE invoices SET invoice_type = 'sale' WHERE id = ? AND created_by = ?`,
+            [invoice_id,req.user.id]
         );
 
         res.send({ message: 'Estimate converted to sales successfully',status:200});

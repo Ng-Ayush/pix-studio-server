@@ -38,22 +38,17 @@ app.use("/api/mystudio/calling", require("./routes/calling.routes.js"));
 
 
 if (cluster.isMaster) {
-  console.log(`Master ${process.pid} is running`);
 
   for (let i = 0; i < numCPUs; i++) {
     cluster.fork();
   }
-
-  cluster.on('exit', (worker, code, signal) => {
-    console.log(`worker ${worker.process.pid} died`);
-  });
+ 
 } else {
   // Start server
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, '0.0.0.0', () => console.log(`Worker ${process.pid} started on port ${PORT}`));
 
     app.use((req, res, next) => {
-    console.log(`Worker ${process.pid} is handling ${req.method} ${req.url}`);
     next();
   });
 };
