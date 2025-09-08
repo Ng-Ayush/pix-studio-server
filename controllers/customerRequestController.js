@@ -16,7 +16,7 @@ exports.resolved = async (req, res) => {
         console.log(ticket_id);
 
         await pool.execute('UPDATE customer_request SET status = 1 WHERE ticket_id = ?', [ticket_id]);
-        
+
         res.send({ message: 'Marked as resolved successfully', status: 200 });
     } catch (err) {
         res.status(500).send({ error: 'Failed to resolve', err: err });
@@ -34,23 +34,33 @@ exports.getRequestById = async (req, res) => {
 
         res.send(users[0]);
     } catch (err) {
-        res.status(500).send({ error: 'Failed to get request', err:err });
+        res.status(500).send({ error: 'Failed to get request', err: err });
     }
 };
 
 exports.updateRequest = async (req, res) => {
     try {
-        let { customer_name, priority, phone_number} = req.body;
+        let { customer_name, priority, phone_number } = req.body;
         const ticket_id = req.body.id;
         console.log(req.body);
 
         await pool.execute(
             'UPDATE customer_request SET customer_name = ?, priority = ?, phone_number = ?  WHERE ticket_id = ?',
-            [customer_name, priority,phone_number, ticket_id]
+            [customer_name, priority, phone_number, ticket_id]
         );
 
-        res.send({ message: 'Request updated successfully', status:200 });
+        res.send({ message: 'Request updated successfully', status: 200 });
     } catch (err) {
-        res.status(500).send({ error: 'Failed to update Request', err:err });
+        res.status(500).send({ error: 'Failed to update Request', err: err });
+    }
+};
+
+exports.createTicket = async (req, res) => {
+    try {
+        const { customer_name, priority= '', phone_number, description, customer_unique_id } = req.body;
+        await pool.execute('INSERT INTO customer_request (customer_name, priority, phone_number,description,customer_unique_id) VALUES (?, ?, ?, ?, ?)', [customer_name, priority, phone_number, description, customer_unique_id]);
+        res.send({ message: 'Ticket created successfully', status: 200 });
+    } catch (err) {
+        res.status(500).send({ error: 'Failed to create ticket', err: err });
     }
 };
