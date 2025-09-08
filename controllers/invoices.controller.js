@@ -255,7 +255,7 @@ WHERE invoice_number = ? AND inv.created_by = ?`;
   exports.deleteInvoice = async (req, res) => {
     const { id } = req.params;
     try {
-      const [result] = await pool.execute('DELETE FROM invoices WHERE id = ?', [id]);
+      const [result] = await pool.execute('DELETE FROM invoices WHERE id = ? AND created_by = ?', [id, req.user.id]);
       res.send({ message: 'Invoices deleted', status: 200 });
     } catch (err) {
       res.send({ error: err.message, message: "Something Went wrong", status: 500 });
