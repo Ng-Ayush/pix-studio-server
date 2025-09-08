@@ -57,7 +57,7 @@ exports.updateRequest = async (req, res) => {
 
 exports.createTicket = async (req, res) => {
     try {
-        const { customer_name, priority= '', phone_number, description, customer_unique_id } = req.body;
+        const { customer_name, priority= 'medium', phone_number, description, customer_unique_id } = req.body;
         await pool.execute('INSERT INTO customer_request (customer_name, priority, phone_number,description,customer_unique_id) VALUES (?, ?, ?, ?, ?)', [customer_name, priority, phone_number, description, customer_unique_id]);
         res.send({ message: 'Ticket created successfully', status: 200 });
     } catch (err) {
