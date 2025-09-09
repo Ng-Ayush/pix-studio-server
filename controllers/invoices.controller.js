@@ -87,7 +87,7 @@ exports.generateInvoice = async (req, res) => {
   exports.getInvoiceById = async (req, res) => {
     const { invoice_number } = req.params;
     try {
-      const query = `SELECT inv.*,inv.id AS invoice_id, bc.party_name,bc.phone_number AS party_phone_number, est.id AS estimate_id, est.terms_and_conditions, est.status as estimate_status
+      const query = `SELECT inv.*,inv.id AS invoice_id, bc.party_name,bc.phone_number AS party_phone_number,bc.billing_address AS party_billing_address, est.id AS estimate_id, est.terms_and_conditions, est.status as estimate_status
   FROM invoices inv 
     LEFT JOIN billing_customer bc
     ON inv.party_id = bc.id
@@ -147,6 +147,7 @@ exports.generateInvoice = async (req, res) => {
         discount_type: rows[0].discount_type,
         discount_value: rows[0].discount_value,
         party_phone_number: rows[0].party_phone_number,
+        party_billing_address: rows[0].party_billing_address,
         invoice_items: mergedInvoiceItems
       };
       res.json({ message: 'Invoice found', data: groupedInvoice, status: 200 });
