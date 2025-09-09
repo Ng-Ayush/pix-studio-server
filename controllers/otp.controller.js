@@ -11,7 +11,7 @@ exports.sendOtp = async (req, res) => {
     const { phone_number, name, event_id = '', email = '' } = req.body;
 
     if (!phone_number) {
-        return res.send({ message: "Phone number is required",status:400 });
+        return res.send({ message: "Phone number is required", status: 400 });
     }
 
     try {
@@ -38,15 +38,17 @@ exports.sendOtp = async (req, res) => {
         if (email) {
             try {
                 const transporter = nodemailer.createTransport({
-                    service: 'gmail',
+                    host: "smtp.hostinger.com",
+                    port: 465, 
+                    secure: true,
                     auth: {
-                        user: process.env.GMAIL,
-                        pass: process.env.APP_PASSWORD
+                        user: process.env.HOSTINGER_EMAIL, 
+                        pass: process.env.HOSTINGER_PASS
                     }
                 });
 
                 const mailOptions = {
-                    from: process.env.GMAIL,
+                    from: `"My Studio" <info@mystudioitsolutions.com>`,
                     to: email,
                     subject: 'Your OTP Code from My Studio',
                     html: getOtpEmailTemplate(otp, name),
