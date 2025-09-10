@@ -37,6 +37,8 @@ exports.sendOtp = async (req, res) => {
 
         if (email) {
             try {
+                console.log("MAIL",process.env.HOSTINGER_EMAIL , process.env.HOSTINGER_PASS);
+                
                 const transporter = nodemailer.createTransport({
                     host: "smtp.hostinger.com",
                     port: 465, 
