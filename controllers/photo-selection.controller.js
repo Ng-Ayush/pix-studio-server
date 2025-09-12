@@ -295,7 +295,7 @@ exports.uploadPhotos = async (req, res) => {
 
         const values = uploadedUrls.map(photo => [
             photo.url,
-            photo.name.name,
+            photo.name,
             folder_id,
             uploaded_by
         ]);

@@ -106,7 +106,7 @@ exports.createOrder = async (req, res) => {
 
 exports.verifyPayment = async (req, res) => {
     try {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, feature_id, amount } = req.body;
+        let { razorpay_order_id, razorpay_payment_id, razorpay_signature, feature_id=null, amount } = req.body;
 
         const body = razorpay_order_id + '|' + razorpay_payment_id;
         const expectedSignature = crypto
@@ -115,6 +115,9 @@ exports.verifyPayment = async (req, res) => {
             .digest('hex');
 
         if (expectedSignature === razorpay_signature) {
+
+            console.log(req.user.id, feature_id, razorpay_payment_id, new Date(), amount);
+            
 
             const [features_payment] = await pool.execute(
                 'INSERT INTO features_payment (user_id,feature_id,payment_id,paid_at,amount) VALUES (?,?,?,?,?)',
