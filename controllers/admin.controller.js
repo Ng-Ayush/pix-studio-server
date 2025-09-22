@@ -1,5 +1,7 @@
 const pool = require('../db_config/db.js');
 const jwt = require('jsonwebtoken');
+const { globalInvoiceItems } = require('../utils/helper.js');
+
 
 exports.login = async (req, res) => {
     const { email, password } = req.body;
@@ -41,8 +43,10 @@ exports.createUsers = async (req, res) => {
 
         const [result] = await pool.execute(
             'INSERT INTO users (studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, pin,address,studio_icon,access_expires_on) VALUES (?, ? , ?, ? ,?, ?, ?, ?, ?, ?, ?)',
-            [studio_name, email, phone_number, role, youtube_url, instagram_url, facebook_url, pin, address, studio_icon,access_expires_on]
+            [studio_name, email, phone_number, role, youtube_url, instagram_url, facebook_url, pin, address, studio_icon, access_expires_on]
         );
+
+        await insertGlobalInvoiceItems(result.insertId);  //add global invoice Items
 
         res.send({ message: "Admin created successfully", status: 200 });
     } catch (err) {
@@ -68,11 +72,11 @@ exports.getUsersById = async (req, res) => {
 
 exports.updateUsers = async (req, res) => {
     try {
-        let { studio_name, email, phone_number, youtube_url, instagram_url, facebook_url, address, studio_icon, role,access_expires_on = null, id } = req.body;
+        let { studio_name, email, phone_number, youtube_url, instagram_url, facebook_url, address, studio_icon, role, access_expires_on = null, id } = req.body;
 
         await pool.execute(
             'UPDATE users SET studio_name = ?, email = ?,phone_number = ?, youtube_url = ?, instagram_url = ? , facebook_url =?,address = ? , studio_icon = ?, role = ?, access_expires_on = ?   WHERE id = ?',
-            [studio_name, email, phone_number, youtube_url, instagram_url, facebook_url, address, studio_icon, role,access_expires_on, id]
+            [studio_name, email, phone_number, youtube_url, instagram_url, facebook_url, address, studio_icon, role, access_expires_on, id]
         );
 
         res.send({ message: 'User updated successfully', status: 200 });
@@ -116,9 +120,9 @@ exports.getDynamicImageUrl = async (req, res) => {
 }
 
 exports.insertImages = async (req, res) => {
-    const {images} = req.body;
+    const { images } = req.body;
     console.log(images);
-    
+
     try {
         const query = 'INSERT INTO dynamic_images (image_url) VALUES ?';
 
@@ -135,7 +139,7 @@ exports.insertImages = async (req, res) => {
 
 exports.createPromocode = async (req, res) => {
     try {
-        const { code, discount_type, discount_value, valid_from=null, valid_to=null } = req.body;
+        const { code, discount_type, discount_value, valid_from = null, valid_to = null } = req.body;
         const [existingPromocode] = await pool.execute(
             'SELECT * FROM promocodes WHERE code = ?',
             [code]);
@@ -189,10 +193,43 @@ exports.updatePromocode = async (req, res) => {
 
 exports.togglePromocodeStatus = async (req, res) => {
     try {
-        const { status,promocode_id } = req.body;
+        const { status, promocode_id } = req.body;
         await pool.execute('UPDATE promocodes SET is_active = ? WHERE id = ?', [status, promocode_id]);
         res.send({ message: 'Promocode status updated successfully', status: 200 });
     } catch (err) {
-        res.send({ error: 'Failed to update promocode status',message: err.message , status: 500 });
+        res.send({ error: 'Failed to update promocode status', message: err.message, status: 500 });
     }
 };
+
+async function insertGlobalInvoiceItems(userId) {
+    return new Promise(async (resolve, reject) => {
+
+        const items = globalInvoiceItems();
+
+        const values = items.map(item => [
+            item.item_name,
+            null, // invoice_id
+            item.description || '',
+            item.sale_price,
+            1,    // quantity
+            '',   // location
+            '',   // booking_date
+            '',   // status, should be '' or a default value
+            userId
+        ]);
+        try {
+            const query = `
+                INSERT INTO invoice_items 
+                    (item_name, invoice_id, description, sale_price, quantity, location, booking_date, status, created_by)
+                VALUES ?`;
+            console.log(query, values);
+
+            // Use pool.query for bulk inserts with VALUES ?
+            const [result] = await pool.query(query, [values]);
+            resolve({ message: "Global invoice items added successfully", status: 200 });
+        } catch (err) {
+            reject({ error: err });
+            console.log("Error ", err);
+        }
+    });
+}
