@@ -1,6 +1,8 @@
 const pool = require('../db_config/db.js');
 const admin = require('firebase-admin');
 const serviceAccount = require('../config/firebase-service-account.json');
+const path = require('path');
+const { loadModels, extractFaceDescriptor, processUploadedPhotosConcurrently } = require('../models/faceapi.js');
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -11,14 +13,16 @@ const bucket = admin.storage().bucket();
 
 exports.createEvent = async (req, res) => {
     try {
-        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality,razorpay_payment_id='' } = req.body;
-        const value = [event_name, customer_id, is_event_submitted, is_ai_upload,razorpay_payment_id, req.user.id];
+        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]) } = req.body;
+        console.log(req.body);
+        
+        const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, req.user.id];
         const [result] = await pool.execute(
-            'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload,payment_id, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload,payment_id, browse_all_photo_ai, ai_cover_images, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             value
         );
 
-        if(is_ai_upload){
+        if (is_ai_upload) {
             const [row] = await pool.execute(
                 'INSERT INTO payments  (user_id,event_id,amount,payment_gateway,payment_status,payment_reference,paid_at,created_at) VALUES (?,?,?,?,?,?,?,?)',
                 [req.user.id, result.insertId, req.body.plan_data.price, 'razorpay', 'success', razorpay_payment_id, new Date(), new Date()]
@@ -27,7 +31,7 @@ exports.createEvent = async (req, res) => {
         res.send({ message: 'Event created successfully', status: 200 });
     } catch (err) {
         console.error(err);
-        res.send({ error: 'Internal server error',message: "Something went wrong", status: 500 });
+        res.send({ error: 'Internal server error', message: "Something went wrong", status: 500 });
     }
 };
 
@@ -43,6 +47,8 @@ exports.getAllEvents = async (req, res) => {
     e.event_name,
     e.is_ai_upload,
     e.is_event_submitted,
+    e.browse_all_photo_ai,
+    e.ai_cover_images,
     COUNT(DISTINCT f.id) AS folder_count,
     COUNT(DISTINCT p.id) AS photo_count,
     SUM(CASE WHEN p.is_selected = TRUE THEN 1 ELSE 0 END) AS selected_photo_count,
@@ -79,6 +85,7 @@ GROUP BY e.id
         const mergedEvents = events.map(event => {
             return {
                 ...event,
+                ai_cover_images: event.ai_cover_images ? JSON.parse(event.ai_cover_images) : [],
                 is_ai_upload: !!event.is_ai_upload,
                 is_event_submitted: !!event.is_event_submitted,
                 ai_guests: aiGuestMap[event.event_id] || []
@@ -143,7 +150,7 @@ WHERE f.event_id = ?; `, [event_id]);
         res.send({ message: "Folder Fetched", data: result, status: 200 })
 
     } catch (error) {
-          res.send({ message: "Something went wrong", error:error,status: 400 })
+        res.send({ message: "Something went wrong", error: error, status: 400 })
     }
 }
 
@@ -189,12 +196,13 @@ exports.deleteEvent = async (req, res) => {
     try {
 
         const { id } = req.params;
+        const [paymentDel] = await pool.execute("DELETE FROM payments WHERE event_id = ?", [id]);
         const [result] = await pool.execute('DELETE FROM events WHERE id = ?', [id]);
         res.send({ message: 'Delete successfully', status: 200 });
 
     }
     catch (error) {
-        res.send({ message: 'Something went wrong', status: 400 });
+        res.send({ message: 'Something went wrong', status: 400, error });
     }
 }
 
@@ -249,7 +257,8 @@ exports.getUploadedPhotosByFolderId = async (req, res) => {
     p.uploaded_by,
     p.photo_name,
     p.is_selected,
-    p.is_favourite
+    p.is_favourite,
+    p.face_descriptor
 FROM folders f
 JOIN events e ON f.event_id = e.id
 JOIN customers c ON e.customer_id = c.id
@@ -276,7 +285,8 @@ WHERE f.id = ?;
                     uploaded_by: row.uploaded_by,
                     photo_name: row.photo_name,
                     is_selected: !!row.is_selected,
-                    is_favourite: !!row.is_favourite
+                    is_favourite: !!row.is_favourite,
+                    face_descriptor: row.face_descriptor || ''
                 }))
         };
 
@@ -289,30 +299,30 @@ WHERE f.id = ?;
     }
 }
 
-exports.uploadPhotos = async (req, res) => {
-    try {
-        const { uploaded_by, folder_id, uploadedUrls } = req.body;
+// exports.uploadPhotos = async (req, res) => {
+//     try {
+//         const { uploaded_by, folder_id, uploadedUrls } = req.body;
 
-        const values = uploadedUrls.map(photo => [
-            photo.url,
-            photo.name,
-            folder_id,
-            uploaded_by
-        ]);
+//         const values = uploadedUrls.map(photo => [
+//             photo.url,
+//             photo.name,
+//             folder_id,
+//             uploaded_by
+//         ]);
 
-        const flatValues = values.flat(); // flatten for query placeholders
+//         const flatValues = values.flat(); // flatten for query placeholders
 
-        const placeholders = values.map(() => '(?, ?, ?, ?)').join(',');
+//         const placeholders = values.map(() => '(?, ?, ?, ?)').join(',');
 
-        const query = `INSERT INTO photos (photo_url, photo_name, folder_id,uploaded_by) VALUES ${placeholders}`;
+//         const query = `INSERT INTO photos (photo_url, photo_name, folder_id,uploaded_by) VALUES ${placeholders}`;
 
-        const [result] = await pool.execute(query, flatValues);
-        res.send({ message: "Photos uploaded", data: result, status: 200 })
+//         const [result] = await pool.execute(query, flatValues);
+//         res.send({ message: "Photos uploaded", data: result, status: 200 })
 
-    } catch (error) {
-        res.send({ message: "Something went wrong", data: null, error: error, status: 400 })
-    }
-}
+//     } catch (error) {
+//         res.send({ message: "Something went wrong", data: null, error: error, status: 400 })
+//     }
+// }
 
 
 function extractFirebasePath(url) {
@@ -463,5 +473,124 @@ exports.getAllPhotosByEventId = async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).send({ error: 'Internal server error' });
+    }
+};
+
+let modelsLoaded = false;
+const processingFolders = new Map();
+
+exports.uploadPhotos = async (req, res) => {
+    try {
+        const { uploaded_by, folder_id, event_id, uploadedUrls, is_ai_upload = false } = req.body;
+
+        if (!uploadedUrls || uploadedUrls.length === 0) {
+            return res.status(400).send({ message: "No photos uploaded", status: 400 });
+        }
+
+        const values = uploadedUrls.map(photo => [
+            photo.url,
+            photo.name,
+            folder_id,
+            uploaded_by,
+            null,
+            false
+        ]);
+
+        const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?)').join(',');
+        const flatValues = values.flat();
+
+        const insertQuery = `INSERT INTO photos (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready) VALUES ${placeholders}`;
+        await pool.execute(insertQuery, flatValues);
+
+        // Mark not ready flags
+        await pool.execute('UPDATE folders SET isFaceDescriptorReady = false WHERE id = ?', [folder_id]);
+        await pool.execute('UPDATE events SET isFaceDescriptorReady = false WHERE id = ?', [event_id]);
+
+        res.status(200).send({ message: "Batch uploaded, descriptor extraction started", status: 200, isFaceDescriptorReady: false });
+
+        if (is_ai_upload) {
+            enqueueFolderBatch(folder_id, event_id, uploadedUrls);
+        }
+    } catch (error) {
+        res.status(500).send({ message: "Upload failed", error: error.message, status: 500 });
+    }
+};
+
+function enqueueFolderBatch(folder_id, event_id, batchPhotos) {
+    if (!processingFolders.has(folder_id)) {
+        processingFolders.set(folder_id, { busy: false, queue: [] });
+    }
+    const folderData = processingFolders.get(folder_id);
+    folderData.queue.push({ event_id, batchPhotos });
+
+    if (!folderData.busy) {
+        processFolderQueue(folder_id);
+    }
+}
+
+async function processFolderQueue(folder_id) {
+    const folderData = processingFolders.get(folder_id);
+    if (!folderData || folderData.busy) return;
+    folderData.busy = true;
+
+    if (!modelsLoaded) {
+        await loadModels();
+        modelsLoaded = true;
+    }
+
+    try {
+        while (folderData.queue.length > 0) {
+            const { event_id, batchPhotos } = folderData.queue.shift();
+
+            for (const photo of batchPhotos) {
+                try {
+                    const descriptor = await extractFaceDescriptor(photo.url);
+                    if (descriptor) {
+                        await pool.execute(
+                            'UPDATE photos SET face_descriptor = ?, descriptor_ready = true WHERE folder_id = ? AND photo_url = ?',
+                            [JSON.stringify(descriptor), folder_id, photo.url]
+                        );
+                    }
+                } catch (err) {
+                    console.error('Descriptor extraction failed for', photo.url, err);
+                }
+            }
+
+            await pool.execute('UPDATE folders SET isFaceDescriptorReady = true WHERE id = ?', [folder_id]);
+
+            const [[{ not_ready }]] = await pool.execute(
+                'SELECT COUNT(*) as not_ready FROM folders WHERE event_id = ? AND isFaceDescriptorReady = false',
+                [event_id]
+            );
+
+            if (not_ready === 0) {
+                await pool.execute('UPDATE events SET isFaceDescriptorReady = true WHERE id = ?', [event_id]);
+            }
+            console.log(`Processed batch for folder ${folder_id}`);
+        }
+
+        folderData.busy = false;
+        processingFolders.delete(folder_id);
+    } catch (error) {
+        console.log("GOT INTIAL ERROR ",error);
+    }
+}
+
+exports.checkEventReady = async (req, res) => {
+    try {
+        const { event_id } = req.params;
+
+        const [[event]] = await pool.execute(
+            'SELECT isFaceDescriptorReady FROM events WHERE id = ?',
+            [event_id]
+        );
+
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+
+        res.json({ isFaceDescriptorReady: !!event.isFaceDescriptorReady });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
     }
 };

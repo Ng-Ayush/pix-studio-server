@@ -43,7 +43,7 @@ exports.verifyPinUser = async (req, res) => {
                     const token = jwt.sign({ _id: user.id }, process.env.JWT_SECRET);
                     res.send({ role: 'admin', phone_number: user.phone_number, name: user.name, user_id: user.id, userData: user, token: token, status: 200, message: 'Pin verification successful' });
                 }
-            }else{
+            } else {
                 res.send({ error: 'Invalid pin', status: 400, message: 'Invalid pin' });
             }
         } else if (role == 'customer') {
@@ -61,7 +61,7 @@ exports.verifyPinUser = async (req, res) => {
 
             if (codeQuery[0]?.id) {
                 res.send({ message: "Code Verified", role: 'customer', data: codeQuery[0], is_event_submitted: !!codeQuery[0]?.is_event_submitted, status: 200 })
-            } else{
+            } else {
                 res.send({ message: "Invalid Code", status: 400 })
             }
         } else if (role == 'ai_customer') {
@@ -77,10 +77,9 @@ exports.verifyPinUser = async (req, res) => {
         WHERE c.customer_unique_id = ? AND c.is_ai_customer = 1`;
 
             const [row] = await pool.execute(query, [pin]);
-            console.log(row);
-            if(row[0]?.id){
+            if (row[0]?.id) {
                 res.send({ message: "Code Verified", role: 'ai_customer', data: row[0], status: 200 })
-            } else{
+            } else {
                 res.send({ message: "Invalid Code", status: 400 })
             }
         }

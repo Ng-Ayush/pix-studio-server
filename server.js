@@ -1,5 +1,7 @@
 require("dotenv").config();
 const express = require("express");
+const http = require('http');
+const { Server } = require('socket.io');
 const app = express();
 const cors = require("cors");
 const bodyParser = require("body-parser");
@@ -9,6 +11,18 @@ const cluster = require('cluster');
 const numCPUs = require('os').cpus().length;
 const scheduleAdminExpiryCheck = require('./utils/cron.js');
 scheduleAdminExpiryCheck();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: '*' }
+});
+
+app.locals.io = io;
+
+io.on('connection', (socket) => {
+   socket.on('join-room', adminId => {
+    socket.join(adminId);
+  });
+});
 
 // Create upload directory
 const uploadDirectory = path.join(__dirname, "public/uploads");
@@ -37,18 +51,16 @@ app.use("/api/mystudio/manage-profile", require("./routes/manageProfileRoute.js"
 app.use("/api/mystudio/calling", require("./routes/calling.routes.js"));
 
 
-if (cluster.isMaster) {
-
+if (cluster.isMaster || cluster.isPrimary) {
+  console.log(`Master ${process.pid} is running`);
   for (let i = 0; i < numCPUs; i++) {
     cluster.fork();
   }
- 
-} else {
-  // Start server
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, '0.0.0.0', () => console.log(`Worker ${process.pid} started on port ${PORT}`));
-
-    app.use((req, res, next) => {
-    next();
+  cluster.on('exit', (worker) => {
+    console.log(`Worker ${worker.process.pid} died. Restarting...`);
+    cluster.fork();
   });
-};
+} else {
+  const PORT = process.env.PORT || 3000;
+  server.listen(PORT, '0.0.0.0', () => console.log(`Worker ${process.pid} started on port ${PORT}`));
+}

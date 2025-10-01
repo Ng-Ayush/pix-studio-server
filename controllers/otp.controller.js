@@ -5,7 +5,10 @@ var otpForVerification = 0;
 const jwt = require("jsonwebtoken");
 const pool = require('../db_config/db.js');
 const nodemailer = require('nodemailer');
-
+const { initWhatsAppClientForAdmin, destroyWhatsAppClient } = require('../whatsappClientManager.js');
+const fs = require('fs');
+const path = require('path');
+const WA_SESSIONS_DIR = path.resolve(__dirname, '../../.wwebjs_auth');
 
 exports.sendOtp = async (req, res) => {
     const { phone_number, name, event_id = '', email = '' } = req.body;
@@ -37,14 +40,14 @@ exports.sendOtp = async (req, res) => {
 
         if (email) {
             try {
-                console.log("MAIL",process.env.HOSTINGER_EMAIL , process.env.HOSTINGER_PASS);
-                
+                console.log("MAIL", process.env.HOSTINGER_EMAIL, process.env.HOSTINGER_PASS);
+
                 const transporter = nodemailer.createTransport({
                     host: "smtp.hostinger.com",
-                    port: 465, 
+                    port: 465,
                     secure: true,
                     auth: {
-                        user: process.env.HOSTINGER_EMAIL, 
+                        user: process.env.HOSTINGER_EMAIL,
                         pass: process.env.HOSTINGER_PASS
                     }
                 });
@@ -83,20 +86,29 @@ exports.verifyOTPForPinUser = async (req, res) => {
     try {
         const { otp, user_id } = req.body;
 
-        // // Code is Commented for testing app
+        console.log("USER ID-------->", user_id);
 
-        // if (!otp || isNaN(otp)) {
-        //     return res.send({ error: 'Invalid OTP' });
-        // }
+        // await clearSession(user_id);
+        // await destroyWhatsAppClient(user_id);
 
-        // const storedOtp = otpForVerification;
+        // const client = initWhatsAppClientForAdmin(user_id);
+        // const io = req.app.locals.io;
 
-        // console.log("STOPED ", otpForVerification, otp);
+        // // Attach event listeners BEFORE initialization
+        // client.on('qr', qr => io.to(user_id).emit('qr', qr));
+        // client.on('authenticated', () => io.to(user_id).emit('authenticated'));
+        // client.on('ready', () => io.to(user_id).emit('ready'));
+        // client.on('auth_failure', () => io.to(user_id).emit('auth_failure'));
+        // client.on('disconnected', () => io.to(user_id).emit('disconnected'));
+        // client.on('auth_failure', () => console.log('Auth failure event'));
+        // client.on('disconnected', () => console.log('Client disconnected'));
+        // client.on('change_state', (state) => console.log('State changed', state));
 
-        // if (!storedOtp) return res.send({ message: 'OTP expired or not found', status: 400 });
+        // // Initialize client to start WhatsApp Web connection
+        // client.initialize();
 
-        // if (storedOtp != otp) return res.send({ message: 'Invalid OTP' });
 
+        // console.log(`Sockets in room ${user_id}: `, io.sockets.adapter.rooms.get(user_id))
 
         const token = jwt.sign({ _id: user_id }, process.env.JWT_SECRET);
 
@@ -105,5 +117,13 @@ exports.verifyOTPForPinUser = async (req, res) => {
     } catch (error) {
         console.error('Error verifying pin:', error);
         res.status(500).send({ message: 'Failed to verify pin', status: 500 });
+    }
+}
+
+
+async function clearSession(adminId) {
+    const sessionDir = path.join(__dirname, '../../.wwebjs_auth', adminId.toString());
+    if (fs.existsSync(sessionDir)) {
+        fs.rmSync(sessionDir, { recursive: true, force: true });
     }
 }

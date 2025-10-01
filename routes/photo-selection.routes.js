@@ -24,6 +24,7 @@ router.post("/getFolderListByCustomerCode",photoSelectionController.getFolderLis
 router.post("/updatePhotoStatus",photoSelectionController.updatePhotoStatus)
 router.post("/submitEvent",photoSelectionController.submitEvent);
 
+router.get("/checkEventReady/:event_id", photoSelectionController.checkEventReady);
 router.get("/getAllPhotosByEventId/:event_id",photoSelectionController.getAllPhotosByEventId)
 
 
