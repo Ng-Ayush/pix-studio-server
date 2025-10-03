@@ -103,14 +103,14 @@ GROUP BY e.id
 exports.updateEvent = async (req, res) => {
     try {
         const { event_id } = req.params;
-        const { is_event_submitted, event_name, browse_all_photo_ai } = req.body;
+        const { is_event_submitted, event_name, browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]) } = req.body;
 
-        let query = `UPDATE events SET is_event_submitted = ?, browse_all_photo_ai = ? WHERE id = ?`;
-        let value = [is_event_submitted, browse_all_photo_ai, +event_id];
+        let query = `UPDATE events SET is_event_submitted = ?, browse_all_photo_ai = ?,ai_cover_images = ? WHERE id = ?`;
+        let value = [is_event_submitted, browse_all_photo_ai, ai_cover_images, +event_id];
 
         if (event_name) {
-            query = `UPDATE events SET is_event_submitted = ?, event_name = ?, browse_all_photo_ai = ? WHERE id = ?`;
-            value = [is_event_submitted, event_name, browse_all_photo_ai, +event_id];
+            query = `UPDATE events SET is_event_submitted = ?, event_name = ?, browse_all_photo_ai = ?, ai_cover_images = ? WHERE id = ?`;
+            value = [is_event_submitted, event_name, browse_all_photo_ai, ai_cover_images, +event_id];
         }
 
         const [result] = await pool.execute(query, value);
@@ -595,3 +595,24 @@ exports.checkEventReady = async (req, res) => {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
+
+exports.checkIsBrowseAllFolderStatus = async (req, res) => {
+    try {
+        const { event_id } = req.params;
+        const { user_id } = req.query;
+
+        const [[event]] = await pool.execute(
+            'SELECT browse_all_photo_ai FROM events WHERE id = ? AND created_by = ?',
+            [event_id, user_id]
+        );
+
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+
+        res.send({ status: 200, data: !!event.browse_all_photo_ai });
+
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+}
