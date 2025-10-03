@@ -15,7 +15,7 @@ exports.createEvent = async (req, res) => {
     try {
         const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]) } = req.body;
         console.log(req.body);
-        
+
         const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, req.user.id];
         const [result] = await pool.execute(
             'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload,payment_id, browse_all_photo_ai, ai_cover_images, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -102,24 +102,25 @@ GROUP BY e.id
 
 exports.updateEvent = async (req, res) => {
     try {
-
         const { event_id } = req.params;
-        const { is_event_submitted, event_name } = req.body;
-        let query = `UPDATE events SET is_event_submitted = ? WHERE id = ?`;
-        let value = [is_event_submitted, +event_id];
+        const { is_event_submitted, event_name, browse_all_photo_ai } = req.body;
+
+        let query = `UPDATE events SET is_event_submitted = ?, browse_all_photo_ai = ? WHERE id = ?`;
+        let value = [is_event_submitted, browse_all_photo_ai, +event_id];
+
         if (event_name) {
-            query = `UPDATE events SET is_event_submitted = ?, event_name = ? WHERE id = ?`;
-            value = [is_event_submitted, event_name, +event_id];
+            query = `UPDATE events SET is_event_submitted = ?, event_name = ?, browse_all_photo_ai = ? WHERE id = ?`;
+            value = [is_event_submitted, event_name, browse_all_photo_ai, +event_id];
         }
 
         const [result] = await pool.execute(query, value);
         res.send({ message: 'Event updated successfully', status: 200 });
 
-    }
-    catch (error) {
+    } catch (error) {
         res.send({ message: 'Something went wrong', status: 400, error });
     }
 }
+
 
 exports.getFolderByEventId = async (req, res) => {
     try {
@@ -572,7 +573,7 @@ async function processFolderQueue(folder_id) {
         folderData.busy = false;
         processingFolders.delete(folder_id);
     } catch (error) {
-        console.log("GOT INTIAL ERROR ",error);
+        console.log("GOT INTIAL ERROR ", error);
     }
 }
 
