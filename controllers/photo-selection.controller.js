@@ -504,8 +504,10 @@ exports.uploadPhotos = async (req, res) => {
         await pool.execute(insertQuery, flatValues);
 
         // Mark not ready flags
-        await pool.execute('UPDATE folders SET isFaceDescriptorReady = false WHERE id = ?', [folder_id]);
-        await pool.execute('UPDATE events SET isFaceDescriptorReady = false WHERE id = ?', [event_id]);
+        if (is_ai_upload) {
+            await pool.execute('UPDATE folders SET isFaceDescriptorReady = false WHERE id = ?', [folder_id]);
+            await pool.execute('UPDATE events SET isFaceDescriptorReady = false WHERE id = ?', [event_id]);
+        }
 
         res.status(200).send({ message: "Batch uploaded, descriptor extraction started", status: 200, isFaceDescriptorReady: false });
 
