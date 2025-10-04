@@ -1,15 +1,17 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const clients = new Map();
 
-function initWhatsAppClientForAdmin(adminId) {
+async function initWhatsAppClientForAdmin(adminId) {
     if (clients.has(adminId)) return clients.get(adminId);
 
     const client = new Client({
         authStrategy: new LocalAuth({ clientId: adminId.toString() }),
-        puppeteer: { headless: false }
+        puppeteer: { headless: true }  // or false for debugging
     });
 
     clients.set(adminId, client);
+    console.log("CLIENT HERE ",clients);
+    
     return client;
 }
 
