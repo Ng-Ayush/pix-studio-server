@@ -1,5 +1,6 @@
 const pool = require('../db_config/db.js');
 const { initWhatsAppClientForAdmin, clients } = require('../whatsappClientManager.js');
+const qrMap = new Map();
 
 exports.getUsersByCurrentId = async (req, res) => {
     try {
@@ -51,12 +52,22 @@ exports.connectToWhatsApp = async (req, res) => {
         if (!io) return res.status(500).send('Socket.io not initialized');
 
         if (clients.has(userId)) {
-            return res.status(200).json({ message: 'WhatsApp client already initialized' });
+            const client = clients.get(userId);
+            if (client.isReady) {
+                io.to(`user_${userId}`).emit('ready');
+            }
+            const qr = qrMap.get(userId);
+            return res.status(200).json({
+                message: 'WhatsApp client already initialized',
+                status: 200,
+                qr: qr || null
+            });
         }
 
         const client = await initWhatsAppClientForAdmin(userId);
 
         client.on('qr', qr => {
+            qrMap.set(userId, qr);
             io.to(`user_${userId}`).emit('qr', qr);
         });
 
