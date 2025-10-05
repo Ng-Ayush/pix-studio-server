@@ -4,7 +4,18 @@ const { initWhatsAppClientForAdmin, clients } = require('../whatsappClientManage
 exports.getUsersByCurrentId = async (req, res) => {
     try {
         const { id } = req.params;
-        const [users] = await pool.execute('SELECT u.*, mf.status AS whatsapp_status FROM users u JOIN whatsapp_sessions mf ON u.id = mf.user_id WHERE u.id = ?', [id]);
+        const [users] = await pool.execute(
+            `SELECT 
+  u.*, 
+  mf.status AS whatsapp_status
+FROM 
+  users u
+LEFT JOIN 
+  whatsapp_sessions mf 
+ON 
+  u.id = mf.user_id
+WHERE 
+  u.id = ?;`, [id]);
 
         if (!users.length) {
             return res.status(404).send({ message: 'users not found' });
@@ -12,7 +23,7 @@ exports.getUsersByCurrentId = async (req, res) => {
 
         res.send(users[0]);
     } catch (err) {
-        res.status(500).send({ error: 'Failed to get users',err });
+        res.status(500).send({ error: 'Failed to get users', err });
     }
 };
 
@@ -52,8 +63,8 @@ exports.connectToWhatsApp = async (req, res) => {
         client.on('authenticated', async () => {
             const waNumber = client.info?.wid?.user || null;
 
-            console.log("WHATS NUMNBER >.." , client.info);
-            
+            console.log("WHATS NUMNBER >..", client.info);
+
             await pool.query(`
         INSERT INTO whatsapp_sessions (user_id, wa_number, status, last_connected)
         VALUES (?, ?, 'ready', NOW())
