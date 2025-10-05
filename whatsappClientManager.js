@@ -6,12 +6,24 @@ async function initWhatsAppClientForAdmin(adminId) {
 
     const client = new Client({
         authStrategy: new LocalAuth({ clientId: adminId.toString() }),
-        puppeteer: { headless: true }  // or false for debugging
+        puppeteer: {
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process',
+                '--disable-gpu'
+            ]
+        }  // or false for debugging
     });
 
     clients.set(adminId, client);
-    console.log("CLIENT HERE ",clients);
-    
+    console.log("CLIENT HERE ", clients);
+
     return client;
 }
 
