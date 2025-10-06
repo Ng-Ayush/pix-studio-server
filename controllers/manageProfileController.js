@@ -94,7 +94,7 @@ exports.connectToWhatsApp = async (req, res) => {
         });
 
         client.on('disconnected', async reason => {
-            clients.delete(userId);
+            await safeDestroyWhatsAppClient(userId);
             await pool.query(`UPDATE whatsapp_sessions SET status='disconnected', updated_at=NOW() WHERE user_id=?`, [userId]);
             io.to(`user_${userId}`).emit('disconnected', reason);
         });
@@ -106,5 +106,18 @@ exports.connectToWhatsApp = async (req, res) => {
     } catch (err) {
         console.error('WhatsApp init error:', err);
         res.status(500).json({ error: 'Failed to initialize WhatsApp client' });
+    }
+}
+
+async function safeDestroyWhatsAppClient(userId) {
+    if (clients.has(userId)) {
+        const client = clients.get(userId);
+        try {
+            // Wait for client to fully destroy its session
+            await client.destroy();
+            clients.delete(userId);
+        } catch (e) {
+            console.error('Failed to cleanly destroy WhatsApp client:', e);
+        }
     }
 }

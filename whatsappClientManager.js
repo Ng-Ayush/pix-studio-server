@@ -17,6 +17,23 @@ async function initWhatsAppClientForAdmin(adminId) {
                 '--no-zygote',
                 '--single-process',
                 '--disable-gpu'
+
+
+                // '--no-sandbox',
+                // '--disable-setuid-sandbox',
+                // '--disable-dev-shm-usage',
+                // '--disable-accelerated-2d-canvas',
+                // '--no-first-run',
+                // '--no-zygote',
+                // '--single-process',
+                // '--disable-gpu',
+                // '--disable-extensions',
+                // '--disable-background-timer-throttling',
+                // '--disable-backgrounding-occluded-windows',
+                // '--disable-renderer-backgrounding',
+                // '--disable-infobars',
+                // '--window-size=800,600'
+
             ]
         }  // or false for debugging
     });
