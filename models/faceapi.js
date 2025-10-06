@@ -8,7 +8,8 @@ const CONCURRENCY_LIMIT = 5; // Adjust for your CPU
 const loadModels = async () => {
   try {
     const modelsPath = path.join(__dirname);
-    await faceapi.nets.tinyFaceDetector.loadFromDisk(modelsPath);
+    // await faceapi.nets.tinyFaceDetector.loadFromDisk(modelsPath);
+    await faceapi.nets.ssdMobilenetv1.loadFromDisk(modelsPath);
     await faceapi.nets.faceLandmark68Net.loadFromDisk(modelsPath);
     await faceapi.nets.faceRecognitionNet.loadFromDisk(modelsPath);
     console.log('Face-api.js models loaded successfully');
@@ -20,11 +21,11 @@ const loadModels = async () => {
 const extractFaceDescriptor = async (imageUrl) => {
   try {
     const img = await canvas.loadImage(imageUrl);
-    const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+    const detections = await faceapi.detectAllFaces(img, new faceapi.SsdMobilenetv1Options())
       .withFaceLandmarks()
-      .withFaceDescriptor();
-    if (!detection) return null;
-    return Array.from(detection.descriptor);
+      .withFaceDescriptors();
+    if (!detections) return null;
+    return detections.map(d => Array.from(d.descriptor));
   } catch (error) {
     console.error('Error extracting face descriptor:', error);
     return null;
@@ -52,7 +53,7 @@ async function asyncPool(limit, array, iteratorFn) {
 }
 
 // New function to process many photos concurrently
-const processUploadedPhotosConcurrently = async (photoUrls,folder_id,uploaded_by) => {
+const processUploadedPhotosConcurrently = async (photoUrls, folder_id, uploaded_by) => {
   const results = await asyncPool(CONCURRENCY_LIMIT, photoUrls, async (photo) => {
     const descriptor = await extractFaceDescriptor(photo.url);
     if (descriptor) {

@@ -536,6 +536,8 @@ async function processFolderQueue(folder_id) {
     if (!folderData || folderData.busy) return;
     folderData.busy = true;
 
+    const [[{ event_id }]] = await pool.execute('SELECT event_id FROM folders WHERE id = ?', [folder_id]);
+
     if (!modelsLoaded) {
         await loadModels();
         modelsLoaded = true;
@@ -543,39 +545,47 @@ async function processFolderQueue(folder_id) {
 
     try {
         while (folderData.queue.length > 0) {
-            const { event_id, batchPhotos } = folderData.queue.shift();
+            const { batchPhotos } = folderData.queue.shift();
 
             for (const photo of batchPhotos) {
                 try {
                     const descriptor = await extractFaceDescriptor(photo.url);
-                    if (descriptor) {
+                    if (descriptor && descriptor.length > 0) {
                         await pool.execute(
                             'UPDATE photos SET face_descriptor = ?, descriptor_ready = true WHERE folder_id = ? AND photo_url = ?',
                             [JSON.stringify(descriptor), folder_id, photo.url]
+                        );
+                    } else {
+                        await pool.execute(
+                            'UPDATE photos SET face_descriptor = NULL, descriptor_ready = false WHERE folder_id = ? AND photo_url = ?',
+                            [folder_id, photo.url]
                         );
                     }
                 } catch (err) {
                     console.error('Descriptor extraction failed for', photo.url, err);
                 }
             }
-
-            await pool.execute('UPDATE folders SET isFaceDescriptorReady = true WHERE id = ?', [folder_id]);
-
-            const [[{ not_ready }]] = await pool.execute(
-                'SELECT COUNT(*) as not_ready FROM folders WHERE event_id = ? AND isFaceDescriptorReady = false',
-                [event_id]
-            );
-
-            if (not_ready === 0) {
-                await pool.execute('UPDATE events SET isFaceDescriptorReady = true WHERE id = ?', [event_id]);
-            }
             console.log(`Processed batch for folder ${folder_id}`);
+        }
+
+        // All batches processed; now update folder and event flags once
+        await pool.execute('UPDATE folders SET isFaceDescriptorReady = true WHERE id = ?', [folder_id]);
+
+        // This checks if all folders in the event are ready
+        const [[{ not_ready }]] = await pool.execute(
+            'SELECT COUNT(*) as not_ready FROM folders WHERE event_id = ? AND isFaceDescriptorReady = false',
+            [event_id]
+        );
+
+        if (not_ready === 0) {
+            await pool.execute('UPDATE events SET isFaceDescriptorReady = true WHERE id = ?', [event_id]);
         }
 
         folderData.busy = false;
         processingFolders.delete(folder_id);
     } catch (error) {
-        console.log("GOT INTIAL ERROR ", error);
+        folderData.busy = false;
+        console.log("GOT INITIAL ERROR ", error);
     }
 }
 
