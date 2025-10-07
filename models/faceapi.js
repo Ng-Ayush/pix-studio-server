@@ -3,12 +3,12 @@ const faceapi = require('face-api.js');
 const canvas = require('canvas');
 const { Canvas, Image, ImageData } = canvas;
 faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
-const CONCURRENCY_LIMIT = 5; // Adjust for your CPU
+const CONCURRENCY_LIMIT = 4; // Adjust for your CPU
 
 const loadModels = async () => {
   try {
     const modelsPath = path.join(__dirname);
-    // await faceapi.nets.tinyFaceDetector.loadFromDisk(modelsPath);
+    await faceapi.nets.tinyFaceDetector.loadFromDisk(modelsPath);
     await faceapi.nets.ssdMobilenetv1.loadFromDisk(modelsPath);
     await faceapi.nets.faceLandmark68Net.loadFromDisk(modelsPath);
     await faceapi.nets.faceRecognitionNet.loadFromDisk(modelsPath);
@@ -21,6 +21,7 @@ const loadModels = async () => {
 const extractFaceDescriptor = async (imageUrl) => {
   try {
     const img = await canvas.loadImage(imageUrl);
+    console.log("Running for ", photo.url);
     const detections = await faceapi.detectAllFaces(img, new faceapi.SsdMobilenetv1Options())
       .withFaceLandmarks()
       .withFaceDescriptors();
