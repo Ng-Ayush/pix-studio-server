@@ -121,3 +121,19 @@ async function safeDestroyWhatsAppClient(userId) {
         }
     }
 }
+
+
+exports.disconnectWhatsApp = async (req, res) => {
+    try {
+        const userId = req.user._id || req.user.id || req.params.userId;  // assuming JWT-authenticated user
+        const io = req.app.locals.io;
+        if (!io) return res.status(500).send('Socket.io not initialized');  // Add this line
+        await safeDestroyWhatsAppClient(userId);
+        await pool.query(`UPDATE whatsapp_sessions SET status='disconnected', updated_at=NOW() WHERE user_id=?`, [userId]);
+        io.to(`user_${userId}`).emit('disconnected', 'User manually disconnected');
+        res.status(200).json({ message: 'WhatsApp client disconnected', status: 200 });
+    } catch (err) {
+        console.error('Error in disconnectWhatsApp:', err);
+        res.status(500).json({ error: 'Failed to disconnect WhatsApp client' });
+    }
+}
