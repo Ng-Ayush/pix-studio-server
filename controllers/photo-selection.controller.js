@@ -17,12 +17,12 @@ const upload = multer();
 
 exports.createEvent = async (req, res) => {
     try {
-        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}) } = req.body;
+        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url= '' } = req.body;
         console.log(req.body);
 
-        const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, watermark, req.user.id];
+        const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, watermark,youtube_cover_url, req.user.id];
         const [result] = await pool.execute(
-            'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload,payment_id, browse_all_photo_ai, ai_cover_images,watermark, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload,payment_id, browse_all_photo_ai, ai_cover_images,watermark,youtube_cover_url, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             value
         );
 
@@ -54,6 +54,7 @@ exports.getAllEvents = async (req, res) => {
     e.browse_all_photo_ai,
     e.ai_cover_images,
     e.watermark,
+    e.youtube_cover_url,
     COUNT(DISTINCT f.id) AS folder_count,
     COUNT(DISTINCT p.id) AS photo_count,
     SUM(CASE WHEN p.is_selected = TRUE THEN 1 ELSE 0 END) AS selected_photo_count,
@@ -109,14 +110,14 @@ GROUP BY e.id
 exports.updateEvent = async (req, res) => {
     try {
         const { event_id } = req.params;
-        const { is_event_submitted, event_name, browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}) } = req.body;
+        const { is_event_submitted, event_name, browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}),youtube_cover_url='' } = req.body;
 
-        let query = `UPDATE events SET is_event_submitted = ?, browse_all_photo_ai = ?,ai_cover_images = ?,watermark = ? WHERE id = ?`;
-        let value = [is_event_submitted, browse_all_photo_ai, ai_cover_images, watermark, +event_id];
+        let query = `UPDATE events SET is_event_submitted = ?, browse_all_photo_ai = ?,ai_cover_images = ?,watermark = ?, youtube_cover_url = ? WHERE id = ?`;
+        let value = [is_event_submitted, browse_all_photo_ai, ai_cover_images, watermark,youtube_cover_url, +event_id];
 
         if (event_name) {
-            query = `UPDATE events SET is_event_submitted = ?, event_name = ?, browse_all_photo_ai = ?, ai_cover_images = ?,watermark = ? WHERE id = ?`;
-            value = [is_event_submitted, event_name, browse_all_photo_ai, ai_cover_images, watermark, +event_id];
+            query = `UPDATE events SET is_event_submitted = ?, event_name = ?, browse_all_photo_ai = ?, ai_cover_images = ?,watermark = ?,youtube_cover_url = ? WHERE id = ?`;
+            value = [is_event_submitted, event_name, browse_all_photo_ai, ai_cover_images, watermark,youtube_cover_url, +event_id];
         }
 
         const [result] = await pool.execute(query, value);
@@ -258,6 +259,7 @@ exports.getUploadedPhotosByFolderId = async (req, res) => {
     e.id AS event_id,
     e.is_event_submitted,
     e.watermark,
+    e.youtube_cover_url,
     f.folder_name,
     f.id AS folder_id,
     p.id AS photo_id,
@@ -286,6 +288,7 @@ WHERE f.id = ?;
             is_event_submitted: !!result[0]?.is_event_submitted,
             selectedPhotosCount: result.filter(row => row.is_selected).length,
             watermark: result[0]?.watermark,
+            youtube_cover_url : result[0]?.youtube_cover_url,
             photos: result
                 .filter(row => row.photo_id !== null)
                 .map(row => ({
