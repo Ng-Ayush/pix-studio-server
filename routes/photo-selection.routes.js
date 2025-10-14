@@ -2,7 +2,10 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware');
 const photoSelectionController = require('../controllers/photo-selection.controller.js');
+const multer = require('multer');
 
+// Use multer to handle the file upload (in-memory storage)
+const upload = multer();
 // router.use(authMiddleware);
 
 router.post("/createEvent",authMiddleware, photoSelectionController.createEvent);
@@ -27,6 +30,7 @@ router.post("/submitEvent",photoSelectionController.submitEvent);
 router.get("/checkEventReady/:event_id", photoSelectionController.checkEventReady);
 router.get("/getAllPhotosByEventId/:event_id",photoSelectionController.getAllPhotosByEventId)
 router.get("/checkIsBrowseAllFolderStatus/:event_id",photoSelectionController.checkIsBrowseAllFolderStatus)
+router.post("/find-person",upload.single('input_img'),photoSelectionController.findPerson)
 
 
 
