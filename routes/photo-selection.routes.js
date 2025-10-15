@@ -14,7 +14,7 @@ router.get("/getEventById/:event_id", photoSelectionController.getEventById);
 router.put("/updateEvent/:event_id",authMiddleware, photoSelectionController.updateEvent);
 router.get("/getFolderByEventId/:event_id",authMiddleware, photoSelectionController.getFolderByEventId);
 router.get("/getAiGuestByEventId/:event_id",authMiddleware, photoSelectionController.getAiGuestByEventId);
-router.post("/addAiGuest",authMiddleware, photoSelectionController.addAiGuest);
+router.post("/addAiGuest",photoSelectionController.addAiGuest);
 router.get("/getUploadedPhotosByFolderId/:folder_id", photoSelectionController.getUploadedPhotosByFolderId);
 router.post("/createNewFolder",authMiddleware, photoSelectionController.createNewFolder);
 router.put("/updateFolder/:id",authMiddleware, photoSelectionController.updateFolder);

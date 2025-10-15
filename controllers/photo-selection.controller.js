@@ -238,12 +238,13 @@ exports.getEventById = async (req, res) => {
 
 exports.addAiGuest = async (req, res) => {
     try {
-        const { event_id, guest_name, guest_phone, image_url } = req.body;
-        const [result] = await pool.execute(`INSERT INTO ai_guests (event_id,guest_name,guest_phone,image_url,created_by) VALUES (?,?,?,?,?)`, [event_id, guest_name, guest_phone, image_url, req.user.id]);
+        const { event_id, guest_name, guest_phone, created_by } = req.body;
+        console.log(req.body);
+        const [result] = await pool.execute(`INSERT INTO ai_guests (event_id,guest_name,guest_phone,created_by) VALUES (?,?,?,?)`, [event_id, guest_name, guest_phone, created_by]);
         res.send({ message: "AI Guest Added", data: result, status: 200 })
 
     } catch (error) {
-        res.send({ message: 'Something went wrong', status: 400 });
+        res.send({ message: 'Something went wrong', err:error, status: 400 });
     }
 }
 
