@@ -341,3 +341,28 @@ exports.sendPdfViaWhatsApp = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.sendBulkMessage = async (req, res) => {
+  try {
+    const { numbers, message } = req.body;
+    const userId = req.user.id;
+
+    const client = clients.get(userId);
+    const results = [];
+
+    for (const number of numbers) {
+      try {
+        const waId = `91${number}@c.us`;
+        await client.sendMessage(waId, message);
+        results.push({ number, success: true });
+      } catch (error) {
+        results.push({ number, success: false, error: error.message });
+      }
+    }
+
+    res.json({ status: 200, results });
+
+  } catch (err) {
+    res.status(500).json({ success: false,status:500, error: err.message });
+  }
+};

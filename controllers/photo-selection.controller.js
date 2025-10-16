@@ -17,12 +17,12 @@ const upload = multer();
 
 exports.createEvent = async (req, res) => {
     try {
-        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url= '' } = req.body;
+        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false } = req.body;
         console.log(req.body);
 
-        const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, watermark,youtube_cover_url, req.user.id];
+        const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, req.user.id];
         const [result] = await pool.execute(
-            'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload,payment_id, browse_all_photo_ai, ai_cover_images,watermark,youtube_cover_url, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload,payment_id, browse_all_photo_ai, ai_cover_images,watermark,youtube_cover_url,need_customer_number, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             value
         );
 
@@ -55,6 +55,7 @@ exports.getAllEvents = async (req, res) => {
     e.ai_cover_images,
     e.watermark,
     e.youtube_cover_url,
+    e.need_customer_number,
     COUNT(DISTINCT f.id) AS folder_count,
     COUNT(DISTINCT p.id) AS photo_count,
     SUM(CASE WHEN p.is_selected = TRUE THEN 1 ELSE 0 END) AS selected_photo_count,
@@ -95,7 +96,8 @@ GROUP BY e.id
                 watermark: event.watermark ? JSON.parse(event.watermark) : {},
                 is_ai_upload: !!event.is_ai_upload,
                 is_event_submitted: !!event.is_event_submitted,
-                ai_guests: aiGuestMap[event.event_id] || []
+                ai_guests: aiGuestMap[event.event_id] || [],
+                need_customer_number: !!event.need_customer_number,
             };
         });
         res.send({ message: 'Events fetched successfully', status: 200, data: mergedEvents });
@@ -110,14 +112,14 @@ GROUP BY e.id
 exports.updateEvent = async (req, res) => {
     try {
         const { event_id } = req.params;
-        const { is_event_submitted, event_name, browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}),youtube_cover_url='' } = req.body;
+        const { is_event_submitted, event_name, browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false } = req.body;
 
-        let query = `UPDATE events SET is_event_submitted = ?, browse_all_photo_ai = ?,ai_cover_images = ?,watermark = ?, youtube_cover_url = ? WHERE id = ?`;
-        let value = [is_event_submitted, browse_all_photo_ai, ai_cover_images, watermark,youtube_cover_url, +event_id];
+        let query = `UPDATE events SET is_event_submitted = ?, browse_all_photo_ai = ?,ai_cover_images = ?,watermark = ?, youtube_cover_url = ?,need_customer_number = ? WHERE id = ?`;
+        let value = [is_event_submitted, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, +event_id];
 
         if (event_name) {
-            query = `UPDATE events SET is_event_submitted = ?, event_name = ?, browse_all_photo_ai = ?, ai_cover_images = ?,watermark = ?,youtube_cover_url = ? WHERE id = ?`;
-            value = [is_event_submitted, event_name, browse_all_photo_ai, ai_cover_images, watermark,youtube_cover_url, +event_id];
+            query = `UPDATE events SET is_event_submitted = ?, event_name = ?, browse_all_photo_ai = ?, ai_cover_images = ?,watermark = ?,youtube_cover_url = ?,need_customer_number = ? WHERE id = ?`;
+            value = [is_event_submitted, event_name, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, +event_id];
         }
 
         const [result] = await pool.execute(query, value);
@@ -238,13 +240,13 @@ exports.getEventById = async (req, res) => {
 
 exports.addAiGuest = async (req, res) => {
     try {
-        const { event_id, guest_name, guest_phone, created_by } = req.body;
+        const { event_id, guest_name, guest_phone, created_by, customer_unique_id = '', image_url = '' } = req.body;
         console.log(req.body);
-        const [result] = await pool.execute(`INSERT INTO ai_guests (event_id,guest_name,guest_phone,created_by) VALUES (?,?,?,?)`, [event_id, guest_name, guest_phone, created_by]);
+        const [result] = await pool.execute(`INSERT INTO ai_guests (event_id,guest_name,guest_phone,created_by,customer_unique_id,image_url) VALUES (?,?,?,?,?,?)`, [event_id, guest_name, guest_phone, created_by, customer_unique_id, image_url]);
         res.send({ message: "AI Guest Added", data: result, status: 200 })
 
     } catch (error) {
-        res.send({ message: 'Something went wrong', err:error, status: 400 });
+        res.send({ message: 'Something went wrong', err: error, status: 400 });
     }
 }
 
@@ -261,6 +263,8 @@ exports.getUploadedPhotosByFolderId = async (req, res) => {
     e.is_event_submitted,
     e.watermark,
     e.youtube_cover_url,
+    e.need_customer_number,
+    e.isFaceDescriptorReady,
     f.folder_name,
     f.id AS folder_id,
     p.id AS photo_id,
@@ -289,7 +293,9 @@ WHERE f.id = ?;
             is_event_submitted: !!result[0]?.is_event_submitted,
             selectedPhotosCount: result.filter(row => row.is_selected).length,
             watermark: result[0]?.watermark,
-            youtube_cover_url : result[0]?.youtube_cover_url,
+            youtube_cover_url: result[0]?.youtube_cover_url,
+            need_customer_number: !!result[0]?.need_customer_number,
+            isFaceDescriptorReady: result[0]?.isFaceDescriptorReady,
             photos: result
                 .filter(row => row.photo_id !== null)
                 .map(row => ({
@@ -481,7 +487,7 @@ exports.getAllPhotosByEventId = async (req, res) => {
         const { event_id } = req.params;
         const { user } = req.query;
 
-        const [result] = await pool.execute('SELECT * FROM photos WHERE folder_id IN (SELECT id FROM folders WHERE event_id = ?) AND uploaded_by = ?', [event_id, user]);
+        const [result] = await pool.execute('SELECT p.*,f.folder_name FROM photos p JOIN folders f ON p.folder_id = f.id WHERE folder_id IN (SELECT id FROM folders WHERE event_id = ?) AND uploaded_by = ?', [event_id, user]);
         res.send({ message: 'Photos fetched successfully', data: result, status: 200 });
     } catch (err) {
         console.error(err);
@@ -491,10 +497,11 @@ exports.getAllPhotosByEventId = async (req, res) => {
 
 let modelsLoaded = false;
 const processingFolders = new Map();
+const eventProcessingMap = new Map();
 
 exports.uploadPhotos = async (req, res) => {
     try {
-        const { uploaded_by, folder_id, event_id, uploadedUrls, is_ai_upload = false } = req.body;
+        const { uploaded_by, folder_id, event_id, uploadedUrls, is_ai_upload = false, wedding_folder_id = null } = req.body;    //wedding_folder_id is the isFaceDescriptor value , previous it was true or false but now a string 
 
         if (!uploadedUrls || uploadedUrls.length === 0) {
             return res.status(400).send({ message: "No photos uploaded", status: 400 });
@@ -515,17 +522,15 @@ exports.uploadPhotos = async (req, res) => {
         const insertQuery = `INSERT INTO photos (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready) VALUES ${placeholders}`;
         await pool.execute(insertQuery, flatValues);
 
-        // Mark not ready flags
         if (is_ai_upload) {
-            await pool.execute('UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?', ['false', folder_id]);
-            await pool.execute('UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?', ['false', event_id]);
+            await pool.execute('UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?', [false, folder_id]);
+            await pool.execute('UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?', [false, event_id]);
         }
 
         res.status(200).send({ message: "Batch uploaded, descriptor extraction started", status: 200, isFaceDescriptorReady: false });
 
         if (is_ai_upload) {
-            // enqueueFolderBatch(folder_id, event_id, uploadedUrls);
-            triggerExternalExtraction(folder_id, event_id, uploadedUrls)
+            triggerExternalExtraction(folder_id, event_id, uploadedUrls, wedding_folder_id)
         }
     } catch (error) {
         res.status(500).send({ message: "Upload failed", error: error.message, status: 500 });
@@ -615,7 +620,8 @@ exports.checkEventReady = async (req, res) => {
             return res.status(404).json({ message: "Event not found" });
         }
 
-        res.json({ isFaceDescriptorReady: event.isFaceDescriptorReady });
+        const isStillProcessing = eventProcessingMap.has(Number(event_id));
+        res.json({ isFaceDescriptorReady: !!event.isFaceDescriptorReady && !isStillProcessing });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
     }
@@ -642,20 +648,23 @@ exports.checkIsBrowseAllFolderStatus = async (req, res) => {
     }
 }
 
-async function triggerExternalExtraction(folder_id, event_id, uploadedUrls) {
+async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, upload_folder_id) {
     try {
 
-        const [[row]] = await pool.execute('SELECT event_name FROM events WHERE id = ?', [event_id]);
+        if (!eventProcessingMap.has(event_id)) {
+            eventProcessingMap.set(event_id, new Set());
+        }
+        eventProcessingMap.get(event_id).add(folder_id);
 
-        console.log("EVENT NAME GOT IN TRIGGER", row.event_name);
+        const [[row]] = await pool.execute('SELECT event_name FROM events WHERE id = ?', [event_id]);
 
 
         const formData = new FormData();
         formData.append('image_urls', JSON.stringify(uploadedUrls.map(u => u.url))); // array of URLs
         formData.append('wedding_name', row.event_name); // you can make this dynamic
+        if (upload_folder_id) formData.append('wedding_folder_id', upload_folder_id);
+        // https://81ca5f69-cc38-48e6-8359-5a575ac4d036-00-16uzz8s2qqhet.worf.replit.dev
 
-        // No need to await – fire and forget, but we handle the promise safely
-        console.log("GOTHTERE folder_id", folder_id, "event_id", event_id);
 
         axios.post('http://157.173.221.163:8003/upload_urls', formData, {
             headers: formData.getHeaders(),
@@ -664,15 +673,27 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls) {
             .then(async (response) => {
                 const { wedding_folder_id } = response.data;
 
-                // ✅ Update DB that processing is done
-                await pool.execute(
-                    'UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?',
-                    [wedding_folder_id, folder_id]
-                );
-                await pool.execute(
-                    'UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?',
-                    [wedding_folder_id, event_id]
-                );
+                // await pool.execute(
+                //     'UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?',
+                //     [true, folder_id]
+                // );
+                // await pool.execute(
+                //     'UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?',
+                //     [true, event_id]
+                // );
+
+                console.log("EENT PROCESS HERE", eventProcessingMap);
+
+
+
+                await pool.execute('UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?', [true, folder_id]);
+
+                eventProcessingMap.get(event_id).delete(folder_id);
+
+                if (eventProcessingMap.get(event_id).size == 0) {
+                    await pool.execute('UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?', [true, event_id]);
+                    eventProcessingMap.delete(event_id);  // Clean up map
+                }
 
                 console.log("✅ Extraction completed:", wedding_folder_id);
             })
@@ -704,10 +725,11 @@ exports.findPerson = async (req, res) => {
         formData.append('wedding_folder_id', wedding_folder_id);
 
         // Forward the request to the external API using axios
-        
+
         //GPU url : https://9s2vp2mren4e22-8003.proxy.runpod.net/find_person
 
         //CPU URL HOSTED: http://157.173.221.163:8003/
+        // https://81ca5f69-cc38-48e6-8359-5a575ac4d036-00-16uzz8s2qqhet.worf.replit.dev
 
 
         const response = await axios.post('http://157.173.221.163:8003/find_person', formData, {
