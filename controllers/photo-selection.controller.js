@@ -759,4 +759,20 @@ exports.findPerson = async (req, res) => {
             error: error.message,
         });
     }
+};
+
+
+exports.checkHasUserAlreadyReviewed = async (req, res) => {
+    try {
+        const { phone,user_id } = req.body;
+
+        const [[row]] = await pool.execute(
+            'SELECT COUNT(*) AS count FROM ai_guests WHERE guest_phone = ? AND created_by = ?',
+            [phone, user_id]
+        );
+        res.send({ status: 200, data: row.count > 1 });
+
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
 }
