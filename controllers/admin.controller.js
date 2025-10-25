@@ -32,7 +32,7 @@ exports.getAllUsers = async (req, res) => {
 
 exports.createUsers = async (req, res) => {
     try {
-        let { studio_name, email, phone_number, role, youtube_url, instagram_url, facebook_url, address, studio_icon, access_expires_on = null } = req.body;
+        let { studio_name, email, phone_number, role, youtube_url, instagram_url, facebook_url, address, studio_icon, access_expires_on = null,allowed_photos_quantity=0 } = req.body;
         const [existingUser] = await pool.execute(
             'SELECT * FROM users WHERE email = ?',
             [email]);
@@ -42,8 +42,8 @@ exports.createUsers = async (req, res) => {
         pin = Math.floor(100000 + Math.random() * 900000);
 
         const [result] = await pool.execute(
-            'INSERT INTO users (studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, pin,address,studio_icon,access_expires_on) VALUES (?, ? , ?, ? ,?, ?, ?, ?, ?, ?, ?)',
-            [studio_name, email, phone_number, role, youtube_url, instagram_url, facebook_url, pin, address, studio_icon, access_expires_on]
+            'INSERT INTO users (studio_name, email, phone_number, role, youtube_url , instagram_url, facebook_url, pin,address,studio_icon,access_expires_on,allowed_photos_quantity) VALUES (?, ? , ?, ? ,?, ?, ?, ?, ?, ?, ?, ?)',
+            [studio_name, email, phone_number, role, youtube_url, instagram_url, facebook_url, pin, address, studio_icon, access_expires_on,allowed_photos_quantity]
         );
 
         await insertGlobalInvoiceItems(result.insertId);  //add global invoice Items
@@ -72,11 +72,11 @@ exports.getUsersById = async (req, res) => {
 
 exports.updateUsers = async (req, res) => {
     try {
-        let { studio_name, email, phone_number, youtube_url, instagram_url, facebook_url, address, studio_icon, role, access_expires_on = null, id } = req.body;
+        let { studio_name, email, phone_number, youtube_url, instagram_url, facebook_url, address, studio_icon, role, access_expires_on = null,allowed_photos_quantity = 0 , id } = req.body;
 
         await pool.execute(
-            'UPDATE users SET studio_name = ?, email = ?,phone_number = ?, youtube_url = ?, instagram_url = ? , facebook_url =?,address = ? , studio_icon = ?, role = ?, access_expires_on = ?   WHERE id = ?',
-            [studio_name, email, phone_number, youtube_url, instagram_url, facebook_url, address, studio_icon, role, access_expires_on, id]
+            'UPDATE users SET studio_name = ?, email = ?,phone_number = ?, youtube_url = ?, instagram_url = ? , facebook_url =?,address = ? , studio_icon = ?, role = ?, access_expires_on = ?, allowed_photos_quantity = ?   WHERE id = ?',
+            [studio_name, email, phone_number, youtube_url, instagram_url, facebook_url, address, studio_icon, role, access_expires_on,allowed_photos_quantity, id]
         );
 
         res.send({ message: 'User updated successfully', status: 200 });

@@ -17,10 +17,10 @@ const upload = multer();
 
 exports.createEvent = async (req, res) => {
     try {
-        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false,google_review_url ='' } = req.body;
+        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false, google_review_url = '' } = req.body;
         console.log(req.body);
 
-        const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number,google_review_url, req.user.id];
+        const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url, req.user.id];
         const [result] = await pool.execute(
             'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload,payment_id, browse_all_photo_ai, ai_cover_images,watermark,youtube_cover_url,need_customer_number,google_review_url, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             value
@@ -113,14 +113,14 @@ GROUP BY e.id
 exports.updateEvent = async (req, res) => {
     try {
         const { event_id } = req.params;
-        const { is_event_submitted, event_name, browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false,google_review_url='' } = req.body;
+        const { is_event_submitted, event_name, browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false, google_review_url = '' } = req.body;
 
         let query = `UPDATE events SET is_event_submitted = ?, browse_all_photo_ai = ?,ai_cover_images = ?,watermark = ?, youtube_cover_url = ?,need_customer_number = ?,google_review_url = ? WHERE id = ?`;
-        let value = [is_event_submitted, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number,google_review_url, +event_id];
+        let value = [is_event_submitted, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url, +event_id];
 
         if (event_name) {
             query = `UPDATE events SET is_event_submitted = ?, event_name = ?, browse_all_photo_ai = ?, ai_cover_images = ?,watermark = ?,youtube_cover_url = ?,need_customer_number = ?,google_review_url = ? WHERE id = ?`;
-            value = [is_event_submitted, event_name, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number,google_review_url, +event_id];
+            value = [is_event_submitted, event_name, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url, +event_id];
         }
 
         const [result] = await pool.execute(query, value);
@@ -280,9 +280,7 @@ FROM folders f
 JOIN events e ON f.event_id = e.id
 JOIN customers c ON e.customer_id = c.id
 LEFT JOIN photos p ON p.folder_id = f.id
-WHERE f.id = ?;
-
-        `
+WHERE f.id = ?;`
         const [result] = await pool.execute(query, [folder_id]);
 
         const response = {
@@ -764,7 +762,7 @@ exports.findPerson = async (req, res) => {
 
 exports.checkHasUserAlreadyReviewed = async (req, res) => {
     try {
-        const { phone,user_id } = req.body;
+        const { phone, user_id } = req.body;
 
         const [[row]] = await pool.execute(
             'SELECT COUNT(*) AS count FROM ai_guests WHERE guest_phone = ? AND created_by = ?',
@@ -776,3 +774,25 @@ exports.checkHasUserAlreadyReviewed = async (req, res) => {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 }
+
+exports.getTotalUploadedAiPhotosCount = async (req, res) => {
+    try {
+        const userId = req.user.id;  // Get the user ID from the request
+
+        // Query to count AI-uploaded photos across all events, folders, and photos for the given user
+        const [[{ total_count }]] = await pool.execute(
+            `SELECT COUNT(*) AS total_count
+            FROM photos p
+            JOIN folders f ON p.folder_id = f.id
+            JOIN events e ON f.event_id = e.id
+            WHERE e.created_by = ?
+              AND e.is_ai_upload = 1`,  // Ensure we only count photos from AI-uploaded events
+            [userId]  // Bind the userId to the query
+        );
+
+        // Return the count
+        res.send({ status: 200, data: total_count });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};

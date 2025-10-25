@@ -15,7 +15,7 @@ router.put("/updateEvent/:event_id",authMiddleware, photoSelectionController.upd
 router.get("/getFolderByEventId/:event_id",authMiddleware, photoSelectionController.getFolderByEventId);
 router.get("/getAiGuestByEventId/:event_id",authMiddleware, photoSelectionController.getAiGuestByEventId);
 router.post("/addAiGuest",photoSelectionController.addAiGuest);
-router.get("/getUploadedPhotosByFolderId/:folder_id", photoSelectionController.getUploadedPhotosByFolderId);
+router.get("/getUploadedPhotosByFolderId/:folder_id",authMiddleware, photoSelectionController.getUploadedPhotosByFolderId);
 router.post("/createNewFolder",authMiddleware, photoSelectionController.createNewFolder);
 router.put("/updateFolder/:id",authMiddleware, photoSelectionController.updateFolder);
 router.delete("/deleteFolder/:id",authMiddleware, photoSelectionController.deleteFolder);
@@ -33,6 +33,7 @@ router.get("/checkIsBrowseAllFolderStatus/:event_id",photoSelectionController.ch
 router.post("/checkHasUserAlreadyReviewed",photoSelectionController.checkHasUserAlreadyReviewed)
 router.post("/find-person",upload.single('input_img'),photoSelectionController.findPerson)
 
+router.get("/getTotalUploadedAiPhotosCount",authMiddleware, photoSelectionController.getTotalUploadedAiPhotosCount);
 
 
 module.exports = router;
