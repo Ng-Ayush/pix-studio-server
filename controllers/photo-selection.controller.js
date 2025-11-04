@@ -486,18 +486,114 @@ exports.submitEvent = async (req, res) => {
 };
 
 
+// exports.getAllPhotosByEventId = async (req, res) => {
+//     try {
+//         const { event_id } = req.params;
+//         const { user } = req.query;
+
+//         const [result] = await pool.execute('SELECT p.*,f.folder_name FROM photos p JOIN folders f ON p.folder_id = f.id WHERE folder_id IN (SELECT id FROM folders WHERE event_id = ?) AND uploaded_by = ?', [event_id, user]);
+//         res.send({ message: 'Photos fetched successfully', data: result, status: 200 });
+//     } catch (err) {
+//         console.error(err);
+//         res.status(500).send({ error: 'Internal server error' });
+//     }
+// };
+
 exports.getAllPhotosByEventId = async (req, res) => {
     try {
         const { event_id } = req.params;
-        const { user } = req.query;
-
-        const [result] = await pool.execute('SELECT p.*,f.folder_name FROM photos p JOIN folders f ON p.folder_id = f.id WHERE folder_id IN (SELECT id FROM folders WHERE event_id = ?) AND uploaded_by = ?', [event_id, user]);
-        res.send({ message: 'Photos fetched successfully', data: result, status: 200 });
+        const { user, page = 1, limit = 50 } = req.query;
+        
+        const offset = (page - 1) * limit;
+        
+        // Get total count
+        const [countResult] = await pool.execute(
+            `SELECT COUNT(DISTINCT p.id) as total 
+             FROM photos p 
+             JOIN folders f ON p.folder_id = f.id 
+             WHERE f.event_id = ? AND p.uploaded_by = ?`,
+            [event_id, user]
+        );
+        
+        const total = countResult[0].total;
+        
+        // Fetch paginated data - DISTINCT to avoid duplicates
+        const [result] = await pool.execute(
+            `SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id, 
+                    p.photo_name, p.face_descriptor, p.descriptor_ready, 
+                    p.is_selected, p.is_favourite, f.folder_name
+             FROM photos p 
+             JOIN folders f ON p.folder_id = f.id 
+             WHERE f.event_id = ? AND p.uploaded_by = ?
+             ORDER BY f.folder_name, p.id ASC
+             LIMIT ? OFFSET ?`,
+            [event_id, user, parseInt(limit), offset]
+        );
+        
+        res.send({ 
+            message: 'Photos fetched successfully', 
+            data: result, 
+            pagination: {
+                total,
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(total / limit),
+                currentCount: result.length
+            },
+            status: 200 
+        });
     } catch (err) {
         console.error(err);
         res.status(500).send({ error: 'Internal server error' });
     }
 };
+
+// exports.getAllPhotosByEventId = async (req, res) => {
+//     try {
+//         const { event_id } = req.params;
+//         const { user, page = 1, limit = 10 } = req.query; // Default 50 photos per request
+
+//         console.log(event_id, user , page, limit);
+        
+        
+//         const offset = (page - 1) * limit;
+        
+//         // Get total count for pagination info
+//         const [countResult] = await pool.execute(
+//             'SELECT COUNT(*) as total FROM photos p WHERE folder_id IN (SELECT id FROM folders WHERE event_id = ?) AND uploaded_by = ?', 
+//             [event_id, user]
+//         );
+        
+//         const total = countResult[0].total;
+        
+//         // Fetch paginated data with proper indexing
+//         const [result] = await pool.execute(
+//             `SELECT p.*, f.folder_name 
+//              FROM photos p 
+//              JOIN folders f ON p.folder_id = f.id 
+//              WHERE f.event_id = ? AND p.uploaded_by = ?
+//              ORDER BY p.id DESC
+//              LIMIT ? OFFSET ?`,
+//             [event_id, user, parseInt(limit), offset]
+//         );
+        
+//         res.send({ 
+//             message: 'Photos fetched successfully', 
+//             data: result, 
+//             pagination: {
+//                 total,
+//                 page: parseInt(page),
+//                 limit: parseInt(limit),
+//                 totalPages: Math.ceil(total / limit)
+//             },
+//             status: 200 
+//         });
+//     } catch (err) {
+//         console.error(err);
+//         res.status(500).send({ error: 'Internal server error' });
+//     }
+// };
+
 
 let modelsLoaded = false;
 const processingFolders = new Map();
