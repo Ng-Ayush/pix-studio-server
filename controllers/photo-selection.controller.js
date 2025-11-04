@@ -504,62 +504,37 @@ exports.getAllPhotosByEventId = async (req, res) => {
         const { event_id } = req.params;
         const { user, page = 1, limit = 50 } = req.query;
 
-        // Convert ALL parameters to integers FIRST
         const eventId = parseInt(event_id, 10);
         const userId = parseInt(user, 10);
         const pageNum = parseInt(page, 10);
         const limitNum = parseInt(limit, 10);
         const offset = (pageNum - 1) * limitNum;
 
-        // Debug logging
-        console.log('=== getAllPhotosByEventId Debug ===');
-        console.log('Raw params:', { event_id, user, page, limit });
-        console.log('Converted params:', { eventId, userId, pageNum, limitNum, offset });
-        console.log('Types:', {
-            eventId: typeof eventId,
-            userId: typeof userId,
-            pageNum: typeof pageNum,
-            limitNum: typeof limitNum,
-            offset: typeof offset
-        });
+        console.log('Query params:', { eventId, userId, pageNum, limitNum, offset });
 
-        // Validate all parameters
-        if (isNaN(eventId) || isNaN(userId) || isNaN(pageNum) || isNaN(limitNum)) {
-            console.error('Invalid parameters detected!');
-            return res.status(400).send({
-                error: 'Invalid parameters',
-                received: { event_id, user, page, limit }
-            });
-        }
-
-        // Get total count
-        console.log('Executing count query...');
+        // Get total count - NO DISTINCT
         const [countResult] = await pool.execute(
-            `SELECT COUNT(DISTINCT p.id) as total 
+            `SELECT COUNT(p.id) as total 
              FROM photos p 
-             JOIN folders f ON p.folder_id = f.id 
+             INNER JOIN folders f ON p.folder_id = f.id 
              WHERE f.event_id = ? AND p.uploaded_by = ?`,
             [eventId, userId]
         );
 
         const total = countResult[0].total;
-        console.log('Total photos found:', total);
 
-        // Fetch paginated data
-        console.log('Executing main query with params:', [eventId, userId, limitNum, offset]);
+        // Fetch paginated data - NO DISTINCT
         const [result] = await pool.execute(
-            `SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id, 
+            `SELECT p.id, p.photo_url, p.uploaded_by, p.folder_id, 
                     p.photo_name, p.face_descriptor, p.descriptor_ready, 
                     p.is_selected, p.is_favourite, f.folder_name
              FROM photos p 
-             JOIN folders f ON p.folder_id = f.id 
+             INNER JOIN folders f ON p.folder_id = f.id 
              WHERE f.event_id = ? AND p.uploaded_by = ?
-             ORDER BY f.folder_name, p.id ASC
+             ORDER BY f.folder_name ASC, p.id ASC
              LIMIT ? OFFSET ?`,
             [eventId, userId, limitNum, offset]
         );
-
-        console.log('Query successful, returned rows:', result.length);
 
         res.send({
             message: 'Photos fetched successfully',
@@ -574,16 +549,10 @@ exports.getAllPhotosByEventId = async (req, res) => {
             status: 200
         });
     } catch (err) {
-        console.error('=== ERROR in getAllPhotosByEventId ===');
-        console.error('Error code:', err.code);
-        console.error('Error message:', err.message);
-        console.error('SQL State:', err.sqlState);
-        console.error('SQL:', err.sql);
-        console.error('Full error:', err);
-        res.status(500).send({
+        console.error('ERROR:', err);
+        res.status(500).send({ 
             error: 'Internal server error',
-            code: err.code,
-            message: err.message
+            details: err.message 
         });
     }
 };
