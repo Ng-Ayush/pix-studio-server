@@ -17,10 +17,10 @@ const upload = multer();
 
 exports.createEvent = async (req, res) => {
     try {
-        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false, google_review_url = '',selected_template='' } = req.body;
+        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false, google_review_url = '', selected_template = '' } = req.body;
         console.log(req.body);
 
-        const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url,selected_template, req.user.id];
+        const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url, selected_template, req.user.id];
         const [result] = await pool.execute(
             'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload,payment_id, browse_all_photo_ai, ai_cover_images,watermark,youtube_cover_url,need_customer_number,google_review_url,selected_template, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             value
@@ -114,14 +114,14 @@ GROUP BY e.id
 exports.updateEvent = async (req, res) => {
     try {
         const { event_id } = req.params;
-        const { is_event_submitted, event_name, browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false, google_review_url = '',selected_template = '' } = req.body;
+        const { is_event_submitted, event_name, browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false, google_review_url = '', selected_template = '' } = req.body;
 
         let query = `UPDATE events SET is_event_submitted = ?, browse_all_photo_ai = ?,ai_cover_images = ?,watermark = ?, youtube_cover_url = ?,need_customer_number = ?,google_review_url = ?,selected_template = ? WHERE id = ?`;
-        let value = [is_event_submitted, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url,selected_template, +event_id];
+        let value = [is_event_submitted, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url, selected_template, +event_id];
 
         if (event_name) {
             query = `UPDATE events SET is_event_submitted = ?, event_name = ?, browse_all_photo_ai = ?, ai_cover_images = ?,watermark = ?,youtube_cover_url = ?,need_customer_number = ?,google_review_url = ?,selected_template = ? WHERE id = ?`;
-            value = [is_event_submitted, event_name, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url,selected_template, +event_id];
+            value = [is_event_submitted, event_name, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url, selected_template, +event_id];
         }
 
         const [result] = await pool.execute(query, value);
@@ -501,14 +501,17 @@ exports.submitEvent = async (req, res) => {
 
 exports.getAllPhotosByEventId = async (req, res) => {
     try {
-        const { event_id } = req.params;
-        const { user, page = 1, limit = 50 } = req.query;
-        
-        const offset = (page - 1) * limit;
+        let { event_id } = req.params;
+        let { user, page = 1, limit = 50 } = req.query;
 
-        console.log(event_id ,user , page, offset , typeof event_id, typeof user, typeof page, typeof offset);
-        
-        
+        let offset = (page - 1) * limit;
+
+        event_id = Number(event_id);
+        user = Number(user);
+        page = Number(page);
+        limit = Number(limit);
+
+
         // Get total count
         const [countResult] = await pool.execute(
             `SELECT COUNT(DISTINCT p.id) as total 
@@ -517,9 +520,9 @@ exports.getAllPhotosByEventId = async (req, res) => {
              WHERE f.event_id = ? AND p.uploaded_by = ?`,
             [event_id, user]
         );
-        
+
         const total = countResult[0].total;
-        
+
         // Fetch paginated data - DISTINCT to avoid duplicates
         const [result] = await pool.execute(
             `SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id, 
@@ -532,10 +535,10 @@ exports.getAllPhotosByEventId = async (req, res) => {
              LIMIT ? OFFSET ?`,
             [event_id, user, parseInt(limit), offset]
         );
-        
-        res.send({ 
-            message: 'Photos fetched successfully', 
-            data: result, 
+
+        res.send({
+            message: 'Photos fetched successfully',
+            data: result,
             pagination: {
                 total,
                 page: parseInt(page),
@@ -543,7 +546,7 @@ exports.getAllPhotosByEventId = async (req, res) => {
                 totalPages: Math.ceil(total / limit),
                 currentCount: result.length
             },
-            status: 200 
+            status: 200
         });
     } catch (err) {
         console.error(err);
@@ -557,18 +560,18 @@ exports.getAllPhotosByEventId = async (req, res) => {
 //         const { user, page = 1, limit = 10 } = req.query; // Default 50 photos per request
 
 //         console.log(event_id, user , page, limit);
-        
-        
+
+
 //         const offset = (page - 1) * limit;
-        
+
 //         // Get total count for pagination info
 //         const [countResult] = await pool.execute(
 //             'SELECT COUNT(*) as total FROM photos p WHERE folder_id IN (SELECT id FROM folders WHERE event_id = ?) AND uploaded_by = ?', 
 //             [event_id, user]
 //         );
-        
+
 //         const total = countResult[0].total;
-        
+
 //         // Fetch paginated data with proper indexing
 //         const [result] = await pool.execute(
 //             `SELECT p.*, f.folder_name 
@@ -579,7 +582,7 @@ exports.getAllPhotosByEventId = async (req, res) => {
 //              LIMIT ? OFFSET ?`,
 //             [event_id, user, parseInt(limit), offset]
 //         );
-        
+
 //         res.send({ 
 //             message: 'Photos fetched successfully', 
 //             data: result, 
