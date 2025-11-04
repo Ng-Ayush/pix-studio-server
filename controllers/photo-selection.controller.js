@@ -501,39 +501,53 @@ exports.submitEvent = async (req, res) => {
 
 exports.getAllPhotosByEventId = async (req, res) => {
     try {
-        const { event_id } = req.params;
-        const { user, page = 1, limit = 50 } = req.query;
+        let { event_id } = req.params;
+        let { user, page = 1, limit = 50 } = req.query;
 
-        const eventId = parseInt(event_id, 10);
-        const userId = parseInt(user, 10);
-        const pageNum = parseInt(page, 10);
-        const limitNum = parseInt(limit, 10);
-        const offset = (pageNum - 1) * limitNum;
+        let offset = (page - 1) * limit;
 
-        console.log('Query params:', { eventId, userId, pageNum, limitNum, offset });
+        event_id = Number(event_id);
+        user = Number(user);
+        page = Number(page);
+        limit = Number(limit);
 
-        // Get total count - NO DISTINCT
+
+        // Get total count
         const [countResult] = await pool.execute(
-            `SELECT COUNT(p.id) as total 
+            `SELECT COUNT(DISTINCT p.id) as total 
              FROM photos p 
-             INNER JOIN folders f ON p.folder_id = f.id 
+             JOIN folders f ON p.folder_id = f.id 
              WHERE f.event_id = ? AND p.uploaded_by = ?`,
-            [eventId, userId]
+            [event_id, user]
         );
 
         const total = countResult[0].total;
 
-        // Fetch paginated data - NO DISTINCT
+         const query = `
+    SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id,
+                    p.photo_name, p.face_descriptor, p.descriptor_ready,
+                    p.is_selected, p.is_favourite, f.folder_name
+     FROM photos p
+     JOIN folders f ON p.folder_id = f.id
+     WHERE f.event_id = ${event_id} AND p.uploaded_by = ${user}
+     ORDER BY f.folder_name, p.id ASC
+     LIMIT ${limit} OFFSET ${offset}
+`;
+
+console.log("QUEUYEYIE",query);
+
+
+        // Fetch paginated data - DISTINCT to avoid duplicates
         const [result] = await pool.execute(
-            `SELECT p.id, p.photo_url, p.uploaded_by, p.folder_id, 
+            `SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id, 
                     p.photo_name, p.face_descriptor, p.descriptor_ready, 
                     p.is_selected, p.is_favourite, f.folder_name
              FROM photos p 
-             INNER JOIN folders f ON p.folder_id = f.id 
+             JOIN folders f ON p.folder_id = f.id 
              WHERE f.event_id = ? AND p.uploaded_by = ?
-             ORDER BY f.folder_name ASC, p.id ASC
+             ORDER BY f.folder_name, p.id ASC
              LIMIT ? OFFSET ?`,
-            [eventId, userId, limitNum, offset]
+            [event_id, user, limit, offset]
         );
 
         res.send({
@@ -541,21 +555,19 @@ exports.getAllPhotosByEventId = async (req, res) => {
             data: result,
             pagination: {
                 total,
-                page: pageNum,
-                limit: limitNum,
-                totalPages: Math.ceil(total / limitNum),
+                page: parseInt(page),
+                limit: parseInt(limit),
+                totalPages: Math.ceil(total / limit),
                 currentCount: result.length
             },
             status: 200
         });
     } catch (err) {
-        console.error('ERROR:', err);
-        res.status(500).send({ 
-            error: 'Internal server error',
-            details: err.message 
-        });
+        console.error(err);
+        res.status(500).send({ error: 'Internal server error' });
     }
 };
+
 // exports.getAllPhotosByEventId = async (req, res) => {
 //     try {
 //         const { event_id } = req.params;
