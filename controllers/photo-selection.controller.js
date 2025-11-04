@@ -513,7 +513,7 @@ exports.getAllPhotosByEventId = async (req, res) => {
 
 
         // Get total count
-        const [countResult] = await pool.execute(
+        const [countResult] = await pool.query(
             `SELECT COUNT(DISTINCT p.id) as total 
              FROM photos p 
              JOIN folders f ON p.folder_id = f.id 
@@ -538,7 +538,7 @@ console.log("QUEUYEYIE",query);
 
 
         // Fetch paginated data - DISTINCT to avoid duplicates
-        const [result] = await pool.execute(
+        const [result] = await pool.query(
             `SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id, 
                     p.photo_name, p.face_descriptor, p.descriptor_ready, 
                     p.is_selected, p.is_favourite, f.folder_name
