@@ -501,29 +501,52 @@ exports.submitEvent = async (req, res) => {
 
 exports.getAllPhotosByEventId = async (req, res) => {
     try {
-        let { event_id } = req.params;
-        let { user, page = 1, limit = 50 } = req.query;
+        const { event_id } = req.params;
+        const { user, page = 1, limit = 50 } = req.query;
 
-        let offset = (page - 1) * limit;
+        // Convert ALL parameters to integers FIRST
+        const eventId = parseInt(event_id, 10);
+        const userId = parseInt(user, 10);
+        const pageNum = parseInt(page, 10);
+        const limitNum = parseInt(limit, 10);
+        const offset = (pageNum - 1) * limitNum;
 
-        event_id = Number(event_id);
-        user = Number(user);
-        page = Number(page);
-        limit = Number(limit);
+        // Debug logging
+        console.log('=== getAllPhotosByEventId Debug ===');
+        console.log('Raw params:', { event_id, user, page, limit });
+        console.log('Converted params:', { eventId, userId, pageNum, limitNum, offset });
+        console.log('Types:', {
+            eventId: typeof eventId,
+            userId: typeof userId,
+            pageNum: typeof pageNum,
+            limitNum: typeof limitNum,
+            offset: typeof offset
+        });
 
+        // Validate all parameters
+        if (isNaN(eventId) || isNaN(userId) || isNaN(pageNum) || isNaN(limitNum)) {
+            console.error('Invalid parameters detected!');
+            return res.status(400).send({
+                error: 'Invalid parameters',
+                received: { event_id, user, page, limit }
+            });
+        }
 
         // Get total count
+        console.log('Executing count query...');
         const [countResult] = await pool.execute(
             `SELECT COUNT(DISTINCT p.id) as total 
              FROM photos p 
              JOIN folders f ON p.folder_id = f.id 
              WHERE f.event_id = ? AND p.uploaded_by = ?`,
-            [event_id, user]
+            [eventId, userId]
         );
 
         const total = countResult[0].total;
+        console.log('Total photos found:', total);
 
-        // Fetch paginated data - DISTINCT to avoid duplicates
+        // Fetch paginated data
+        console.log('Executing main query with params:', [eventId, userId, limitNum, offset]);
         const [result] = await pool.execute(
             `SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id, 
                     p.photo_name, p.face_descriptor, p.descriptor_ready, 
@@ -533,27 +556,37 @@ exports.getAllPhotosByEventId = async (req, res) => {
              WHERE f.event_id = ? AND p.uploaded_by = ?
              ORDER BY f.folder_name, p.id ASC
              LIMIT ? OFFSET ?`,
-            [event_id, user, parseInt(limit), offset]
+            [eventId, userId, limitNum, offset]
         );
+
+        console.log('Query successful, returned rows:', result.length);
 
         res.send({
             message: 'Photos fetched successfully',
             data: result,
             pagination: {
                 total,
-                page: parseInt(page),
-                limit: parseInt(limit),
-                totalPages: Math.ceil(total / limit),
+                page: pageNum,
+                limit: limitNum,
+                totalPages: Math.ceil(total / limitNum),
                 currentCount: result.length
             },
             status: 200
         });
     } catch (err) {
-        console.error(err);
-        res.status(500).send({ error: 'Internal server error' });
+        console.error('=== ERROR in getAllPhotosByEventId ===');
+        console.error('Error code:', err.code);
+        console.error('Error message:', err.message);
+        console.error('SQL State:', err.sqlState);
+        console.error('SQL:', err.sql);
+        console.error('Full error:', err);
+        res.status(500).send({
+            error: 'Internal server error',
+            code: err.code,
+            message: err.message
+        });
     }
 };
-
 // exports.getAllPhotosByEventId = async (req, res) => {
 //     try {
 //         const { event_id } = req.params;
