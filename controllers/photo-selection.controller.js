@@ -505,6 +505,9 @@ exports.getAllPhotosByEventId = async (req, res) => {
         const { user, page = 1, limit = 50 } = req.query;
         
         const offset = (page - 1) * limit;
+
+        console.log(event_id ,user , page, offset , typeof event_id, typeof user, typeof page, typeof offset);
+        
         
         // Get total count
         const [countResult] = await pool.execute(
