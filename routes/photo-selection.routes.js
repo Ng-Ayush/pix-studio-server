@@ -27,7 +27,8 @@ router.post("/getFolderListByCustomerCode",photoSelectionController.getFolderLis
 router.post("/updatePhotoStatus",photoSelectionController.updatePhotoStatus)
 router.post("/submitEvent",photoSelectionController.submitEvent);
 
-router.get("/checkEventReady/:event_id", photoSelectionController.checkEventReady);
+// router.get("/checkEventReady/:event_id", photoSelectionController.checkEventReady);
+router.get("/checkEventReady/:wedding_folder_id", photoSelectionController.checkEventReady);
 router.get("/getAllPhotosByEventId/:event_id",photoSelectionController.getAllPhotosByEventId)
 router.get("/getFoldersByEventId/:event_id",photoSelectionController.getFoldersByEventId)
 router.get("/checkIsBrowseAllFolderStatus/:event_id",photoSelectionController.checkIsBrowseAllFolderStatus)

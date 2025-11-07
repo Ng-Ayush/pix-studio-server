@@ -861,23 +861,31 @@ async function processFolderQueue(folder_id) {
 // };
 
 
+
 exports.checkEventReady = async (req, res) => {
-  try {
-    const eId = Number(req.params.event_id);
-    const [[event]] = await pool.execute(
-      'SELECT isFaceDescriptorReady FROM events WHERE id = ?',
-      [eId]
-    );
-    if (!event) return res.status(404).json({ message: "Event not found" });
+    try {
+        const { wedding_folder_id } = req.params;
 
-    const m = eventProcessingMap.get(eId);
-    let stillProcessing = false;
-    if (m) for (const { pending } of m.values()) { if (pending > 0) { stillProcessing = true; break; } }
+        const url = `https://fvu6bziok1xwyc-8888.proxy.runpod.net/check_status/${wedding_folder_id}`
 
-    res.json({ isFaceDescriptorReady: !!event.isFaceDescriptorReady && !stillProcessing });
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
+        console.log("URLLLLLLLLLLL+++++++++++++++....", url);
+
+        const response = await axios.get(url);
+        res.json({ data: response.data });
+        // const eId = Number(req.params.event_id);
+        // const [[event]] = await pool.execute(
+        //     'SELECT isFaceDescriptorReady FROM events WHERE id = ?',
+        //     [eId]
+        // );
+
+        // const m = eventProcessingMap.get(eId);
+        // let stillProcessing = false;
+        // if (m) for (const { pending } of m.values()) { if (pending > 0) { stillProcessing = true; break; } }
+
+        // res.json({ isFaceDescriptorReady: !!event.isFaceDescriptorReady && !stillProcessing });
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
 };
 
 
@@ -967,65 +975,115 @@ exports.checkIsBrowseAllFolderStatus = async (req, res) => {
 //     }
 // };
 
+// async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, upload_folder_id) {
+//     const eId = Number(event_id);
+//     const fId = Number(folder_id);
+//     let failed = false;
+
+//     try {
+//         console.log(uploadedUrls.length, "photos to be uploaded", index);
+//         index++;
+
+//         incPending(eId, fId);
+
+//         const [[row]] = await pool.execute('SELECT event_name FROM events WHERE id = ?', [eId]);
+
+//         const formData = new FormData();
+//         formData.append('image_urls', JSON.stringify(uploadedUrls.map(u => u.url)));
+//         formData.append('wedding_name', row?.event_name || `event_${eId}`);
+//         if (upload_folder_id) formData.append('wedding_folder_id', upload_folder_id);
+
+//         // RUN POD OLD : https://fp4xi6xrzdflsh-8888.proxy.runpod.net
+
+//         const response = await axios.post(
+//             'https://fvu6bziok1xwyc-8888.proxy.runpod.net/upload_urls',
+//             formData,
+//             { headers: formData.getHeaders(), maxBodyLength: Infinity }
+//         );
+
+//         console.log("✅ Extraction completed:", response.data?.wedding_folder_id);
+//     } catch (err) {
+//         failed = true;
+//         console.error("⚠️ External API failed:", err?.message || err);
+//     } finally {
+//         const { folderDone, eventDone, folderFailures } = decPending(eId, fId, failed);
+
+//         // Mark folder ready only when ALL its batches finished and none failed
+//         if (folderDone && folderFailures === 0) {
+//             await pool.execute(
+//                 'UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?',
+//                 [true, fId]
+//             );
+//         }
+
+//         // When event’s all folders are done, flip event flag iff no folder had failures
+//         if (eventDone) {
+//             const folderMap = eventProcessingMap.get(eId);
+//             let anyFailures = false;
+//             if (folderMap) {
+//                 for (const v of folderMap.values()) { if (v.failures > 0) { anyFailures = true; break; } }
+//             }
+//             if (!anyFailures) {
+//                 await pool.execute(
+//                     'UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?',
+//                     [true, eId]
+//                 );
+//             }
+//             // cleanup
+//             eventProcessingMap.delete(eId);
+//         }
+//     }
+// }
+
+
+
 async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, upload_folder_id) {
-    const eId = Number(event_id);
-    const fId = Number(folder_id);
-    let failed = false;
-
     try {
-        console.log(uploadedUrls.length, "photos to be uploaded", index);
-        index++;
 
-        incPending(eId, fId);
+        if (!eventProcessingMap.has(event_id)) {
+            eventProcessingMap.set(event_id, new Set());
+        }
+        eventProcessingMap.get(event_id).add(folder_id);
 
-        const [[row]] = await pool.execute('SELECT event_name FROM events WHERE id = ?', [eId]);
+        const [[row]] = await pool.execute('SELECT event_name FROM events WHERE id = ?', [event_id]);
+
 
         const formData = new FormData();
-        formData.append('image_urls', JSON.stringify(uploadedUrls.map(u => u.url)));
-        formData.append('wedding_name', row?.event_name || `event_${eId}`);
+        formData.append('image_urls', JSON.stringify(uploadedUrls.map(u => u.url))); // array of URLs
+        formData.append('wedding_name', row.event_name); // you can make this dynamic
         if (upload_folder_id) formData.append('wedding_folder_id', upload_folder_id);
+        // https://81ca5f69-cc38-48e6-8359-5a575ac4d036-00-16uzz8s2qqhet.worf.replit.dev
 
-        // RUN POD OLD : https://fp4xi6xrzdflsh-8888.proxy.runpod.net
 
-        const response = await axios.post(
-            'https://ttw49wlenppovu-8888.proxy.runpod.net/upload_urls',
-            formData,
-            { headers: formData.getHeaders(), maxBodyLength: Infinity }
-        );
+        axios.post('https://fvu6bziok1xwyc-8888.proxy.runpod.net/upload_urls', formData, {
+            headers: formData.getHeaders(),
+            maxBodyLength: Infinity, // handle large payloads
+        })
+            .then(async (response) => {
+                const { wedding_folder_id } = response.data;
 
-        console.log("✅ Extraction completed:", response.data?.wedding_folder_id);
-    } catch (err) {
-        failed = true;
-        console.error("⚠️ External API failed:", err?.message || err);
-    } finally {
-        const { folderDone, eventDone, folderFailures } = decPending(eId, fId, failed);
+                console.log("response.data", response);
 
-        // Mark folder ready only when ALL its batches finished and none failed
-        if (folderDone && folderFailures === 0) {
-            await pool.execute(
-                'UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?',
-                [true, fId]
-            );
-        }
+                await pool.execute('UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?', [true, folder_id]);
 
-        // When event’s all folders are done, flip event flag iff no folder had failures
-        if (eventDone) {
-            const folderMap = eventProcessingMap.get(eId);
-            let anyFailures = false;
-            if (folderMap) {
-                for (const v of folderMap.values()) { if (v.failures > 0) { anyFailures = true; break; } }
-            }
-            if (!anyFailures) {
-                await pool.execute(
-                    'UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?',
-                    [true, eId]
-                );
-            }
-            // cleanup
-            eventProcessingMap.delete(eId);
-        }
+                // eventProcessingMap.get(event_id).delete(folder_id);
+
+                // if (eventProcessingMap.get(event_id).size == 0) {
+                //     await pool.execute('UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?', [true, event_id]);
+                //     eventProcessingMap.delete(event_id);  // Clean up map
+                // }
+
+                console.log("✅ Extraction completed:", wedding_folder_id);
+            })
+            .catch(err => {
+                console.error("⚠️ External API failed:", err);
+            });
+
+    } catch (error) {
+        console.error("⚠️ triggerExternalExtraction error:", error.message);
     }
-}
+};
+
 
 exports.findPerson = async (req, res) => {
     try {
@@ -1056,7 +1114,7 @@ exports.findPerson = async (req, res) => {
 
 
 
-        const response = await axios.post('https://ttw49wlenppovu-8888.proxy.runpod.net/find_person', formData, {
+        const response = await axios.post('https://fvu6bziok1xwyc-8888.proxy.runpod.net/find_person', formData, {
             headers: {
                 ...formData.getHeaders(), // Make sure to include proper headers for FormData
             },
