@@ -499,10 +499,80 @@ exports.submitEvent = async (req, res) => {
 //     }
 // };
 
+// exports.getAllPhotosByEventId = async (req, res) => {
+//     try {
+//         let { event_id } = req.params;
+//         let { user, page = 1, limit = 50 } = req.query;
+
+//         let offset = (page - 1) * limit;
+
+//         event_id = Number(event_id);
+//         user = Number(user);
+//         page = Number(page);
+//         limit = Number(limit);
+
+
+//         // Get total count
+//         const [countResult] = await pool.query(
+//             `SELECT COUNT(DISTINCT p.id) as total 
+//              FROM photos p 
+//              JOIN folders f ON p.folder_id = f.id 
+//              WHERE f.event_id = ? AND p.uploaded_by = ?`,
+//             [event_id, user]
+//         );
+
+//         const total = countResult[0].total;
+
+//         const query = `
+//     SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id,
+//                     p.photo_name, p.face_descriptor, p.descriptor_ready,
+//                     p.is_selected, p.is_favourite, f.folder_name
+//      FROM photos p
+//      JOIN folders f ON p.folder_id = f.id
+//      WHERE f.event_id = ${event_id} AND p.uploaded_by = ${user}
+//      ORDER BY f.folder_name, p.id ASC
+//      LIMIT ${limit} OFFSET ${offset}
+// `;
+
+
+
+//         // Fetch paginated data - DISTINCT to avoid duplicates
+//         const [result] = await pool.query(
+//             `SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id, 
+//                     p.photo_name, p.face_descriptor, p.descriptor_ready, 
+//                     p.is_selected, p.is_favourite, f.folder_name
+//              FROM photos p 
+//              JOIN folders f ON p.folder_id = f.id 
+//              WHERE f.event_id = ? AND p.uploaded_by = ?
+//              ORDER BY f.folder_name, p.id ASC
+//              LIMIT ? OFFSET ?`,
+//             [event_id, user, limit, offset]
+//         );
+
+//         res.send({
+//             message: 'Photos fetched successfully',
+//             data: result,
+//             pagination: {
+//                 total,
+//                 page: parseInt(page),
+//                 limit: parseInt(limit),
+//                 totalPages: Math.ceil(total / limit),
+//                 currentCount: result.length
+//             },
+//             status: 200
+//         });
+//     } catch (err) {
+//         console.error(err);
+//         res.status(500).send({ error: 'Internal server error' });
+//     }
+// };
+
+
+
 exports.getAllPhotosByEventId = async (req, res) => {
     try {
         let { event_id } = req.params;
-        let { user, page = 1, limit = 50 } = req.query;
+        let { user, page = 1, limit = 50, folder_id } = req.query;
 
         let offset = (page - 1) * limit;
 
@@ -510,52 +580,53 @@ exports.getAllPhotosByEventId = async (req, res) => {
         user = Number(user);
         page = Number(page);
         limit = Number(limit);
+        folder_id = folder_id ? Number(folder_id) : null;
 
+        // Count query
+        let countQuery = `
+            SELECT COUNT(DISTINCT p.id) as total
+            FROM photos p
+            JOIN folders f ON p.folder_id = f.id
+            WHERE f.event_id = ? AND p.uploaded_by = ?
+        `;
 
-        // Get total count
-        const [countResult] = await pool.query(
-            `SELECT COUNT(DISTINCT p.id) as total 
-             FROM photos p 
-             JOIN folders f ON p.folder_id = f.id 
-             WHERE f.event_id = ? AND p.uploaded_by = ?`,
-            [event_id, user]
-        );
+        let countParams = [event_id, user];
+        if (folder_id) {
+            countQuery += ` AND f.id = ?`;
+            countParams.push(folder_id);
+        }
 
+        const [countResult] = await pool.query(countQuery, countParams);
         const total = countResult[0].total;
 
-        const query = `
-    SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id,
-                    p.photo_name, p.face_descriptor, p.descriptor_ready,
-                    p.is_selected, p.is_favourite, f.folder_name
-     FROM photos p
-     JOIN folders f ON p.folder_id = f.id
-     WHERE f.event_id = ${event_id} AND p.uploaded_by = ${user}
-     ORDER BY f.folder_name, p.id ASC
-     LIMIT ${limit} OFFSET ${offset}
-`;
+        // Data query
+        let dataQuery = `
+            SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id,
+                            p.photo_name, p.face_descriptor, p.descriptor_ready,
+                            p.is_selected, p.is_favourite, f.folder_name
+            FROM photos p
+            JOIN folders f ON p.folder_id = f.id
+            WHERE f.event_id = ? AND p.uploaded_by = ?
+        `;
+        let dataParams = [event_id, user];
 
+        if (folder_id) {
+            dataQuery += ` AND f.id = ?`;
+            dataParams.push(folder_id);
+        }
 
+        dataQuery += ` ORDER BY f.folder_name, p.id ASC LIMIT ? OFFSET ?`;
+        dataParams.push(limit, offset);
 
-        // Fetch paginated data - DISTINCT to avoid duplicates
-        const [result] = await pool.query(
-            `SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id, 
-                    p.photo_name, p.face_descriptor, p.descriptor_ready, 
-                    p.is_selected, p.is_favourite, f.folder_name
-             FROM photos p 
-             JOIN folders f ON p.folder_id = f.id 
-             WHERE f.event_id = ? AND p.uploaded_by = ?
-             ORDER BY f.folder_name, p.id ASC
-             LIMIT ? OFFSET ?`,
-            [event_id, user, limit, offset]
-        );
+        const [result] = await pool.query(dataQuery, dataParams);
 
         res.send({
             message: 'Photos fetched successfully',
             data: result,
             pagination: {
                 total,
-                page: parseInt(page),
-                limit: parseInt(limit),
+                page,
+                limit,
                 totalPages: Math.ceil(total / limit),
                 currentCount: result.length
             },
@@ -566,6 +637,7 @@ exports.getAllPhotosByEventId = async (req, res) => {
         res.status(500).send({ error: 'Internal server error' });
     }
 };
+
 
 exports.getFoldersByEventId = async (req, res) => {
     try {
@@ -913,8 +985,10 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
         formData.append('wedding_name', row?.event_name || `event_${eId}`);
         if (upload_folder_id) formData.append('wedding_folder_id', upload_folder_id);
 
+        // RUN POD OLD : https://fp4xi6xrzdflsh-8888.proxy.runpod.net
+
         const response = await axios.post(
-            'https://fp4xi6xrzdflsh-8888.proxy.runpod.net/upload_urls',
+            'https://ttw49wlenppovu-8888.proxy.runpod.net/upload_urls',
             formData,
             { headers: formData.getHeaders(), maxBodyLength: Infinity }
         );
@@ -982,7 +1056,7 @@ exports.findPerson = async (req, res) => {
 
 
 
-        const response = await axios.post('https://fp4xi6xrzdflsh-8888.proxy.runpod.net/find_person', formData, {
+        const response = await axios.post('https://ttw49wlenppovu-8888.proxy.runpod.net/find_person', formData, {
             headers: {
                 ...formData.getHeaders(), // Make sure to include proper headers for FormData
             },
