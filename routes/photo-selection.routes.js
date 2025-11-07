@@ -29,6 +29,7 @@ router.post("/submitEvent",photoSelectionController.submitEvent);
 
 router.get("/checkEventReady/:event_id", photoSelectionController.checkEventReady);
 router.get("/getAllPhotosByEventId/:event_id",photoSelectionController.getAllPhotosByEventId)
+router.get("/getFoldersByEventId/:event_id",photoSelectionController.getFoldersByEventId)
 router.get("/checkIsBrowseAllFolderStatus/:event_id",photoSelectionController.checkIsBrowseAllFolderStatus)
 router.post("/checkHasUserAlreadyReviewed",photoSelectionController.checkHasUserAlreadyReviewed)
 router.post("/find-person",upload.single('input_img'),photoSelectionController.findPerson)
