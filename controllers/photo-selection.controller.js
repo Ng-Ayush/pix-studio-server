@@ -1039,11 +1039,11 @@ exports.checkIsBrowseAllFolderStatus = async (req, res) => {
 
 async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, upload_folder_id) {
     try {
-
-        if (!eventProcessingMap.has(event_id)) {
-            eventProcessingMap.set(event_id, new Set());
-        }
-        eventProcessingMap.get(event_id).add(folder_id);
+            //no use of upload folder_id
+        // if (!eventProcessingMap.has(event_id)) {
+        //     eventProcessingMap.set(event_id, new Set());
+        // }
+        // eventProcessingMap.get(event_id).add(folder_id);
 
         const [[row]] = await pool.execute('SELECT event_name FROM events WHERE id = ?', [event_id]);
 
@@ -1051,7 +1051,13 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
         const formData = new FormData();
         formData.append('image_urls', JSON.stringify(uploadedUrls.map(u => u.url))); // array of URLs
         formData.append('wedding_name', row.event_name); // you can make this dynamic
-        if (upload_folder_id) formData.append('wedding_folder_id', upload_folder_id);
+
+        let ai_folder_id =  `${row.event_name}_${event_id}`;
+
+        console.log("WEDDING FOLDE IDE",ai_folder_id);
+        
+
+        if (ai_folder_id) formData.append('wedding_folder_id', ai_folder_id);
         // https://81ca5f69-cc38-48e6-8359-5a575ac4d036-00-16uzz8s2qqhet.worf.replit.dev
 
 
@@ -1062,7 +1068,6 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
             .then(async (response) => {
                 const { wedding_folder_id } = response.data;
 
-                console.log("response.data", response);
 
                 await pool.execute('UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?', [true, folder_id]);
 
