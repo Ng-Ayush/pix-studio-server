@@ -866,7 +866,7 @@ exports.checkEventReady = async (req, res) => {
     try {
         const { wedding_folder_id } = req.params;
 
-        const url = `https://fvu6bziok1xwyc-8888.proxy.runpod.net/check_status/${wedding_folder_id}`
+        const url = `http://157.173.221.163:8003/check_status/${wedding_folder_id}`
 
         console.log("URLLLLLLLLLLL+++++++++++++++....", url);
 
@@ -1058,10 +1058,9 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
         
 
         if (ai_folder_id) formData.append('wedding_folder_id', ai_folder_id);
-        // https://81ca5f69-cc38-48e6-8359-5a575ac4d036-00-16uzz8s2qqhet.worf.replit.dev
 
 
-        axios.post('https://fvu6bziok1xwyc-8888.proxy.runpod.net/upload_urls', formData, {
+        axios.post('http://157.173.221.163:8003/upload_urls', formData, {
             headers: formData.getHeaders(),
             maxBodyLength: Infinity, // handle large payloads
         })
@@ -1110,16 +1109,14 @@ exports.findPerson = async (req, res) => {
 
         // Forward the request to the external API using axios
 
-        //GPU url : https://9s2vp2mren4e22-8003.proxy.runpod.net/find_person
 
         //CPU URL HOSTED: http://157.173.221.163:8003/
-        // https://81ca5f69-cc38-48e6-8359-5a575ac4d036-00-16uzz8s2qqhet.worf.replit.dev
 
-        // RUNPOD : https://fp4xi6xrzdflsh-8888.proxy.runpod.net/?token=eg8b93bwxzw4wbjqeqyk
-
+        // CURREENTRUNPOD : https://fvu6bziok1xwyc-8888.proxy.runpod.net
 
 
-        const response = await axios.post('https://fvu6bziok1xwyc-8888.proxy.runpod.net/find_person', formData, {
+
+        const response = await axios.post('http://157.173.221.163:8003/find_person', formData, {
             headers: {
                 ...formData.getHeaders(), // Make sure to include proper headers for FormData
             },
