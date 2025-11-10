@@ -1039,7 +1039,7 @@ exports.checkIsBrowseAllFolderStatus = async (req, res) => {
 
 async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, upload_folder_id) {
     try {
-            //no use of upload folder_id
+        //no use of upload folder_id
         // if (!eventProcessingMap.has(event_id)) {
         //     eventProcessingMap.set(event_id, new Set());
         // }
@@ -1052,10 +1052,10 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
         formData.append('image_urls', JSON.stringify(uploadedUrls.map(u => u.url))); // array of URLs
         formData.append('wedding_name', row.event_name); // you can make this dynamic
 
-        let ai_folder_id =  `${row.event_name}_${event_id}`;
+        let ai_folder_id = `${row.event_name}_${event_id}`;
 
-        console.log("WEDDING FOLDE IDE",ai_folder_id);
-        
+        console.log("WEDDING FOLDE IDE", ai_folder_id);
+
 
         if (ai_folder_id) formData.append('wedding_folder_id', ai_folder_id);
 
@@ -1068,12 +1068,10 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
                 const { wedding_folder_id } = response.data;
 
 
-                await pool.execute('UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?', [true, folder_id]);
 
                 // eventProcessingMap.get(event_id).delete(folder_id);
 
                 // if (eventProcessingMap.get(event_id).size == 0) {
-                //     await pool.execute('UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?', [true, event_id]);
                 //     eventProcessingMap.delete(event_id);  // Clean up map
                 // }
 
@@ -1221,4 +1219,17 @@ function decPending(eventId, folderId, failed = false) {
     }
 
     return { folderDone, eventDone, folderFailures: curr.failures };
+}
+
+
+exports.updateFaceDescriptorEvent = async (req, res) => {
+    try {
+        const { event_id } = req.params;
+
+        await pool.execute('UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?', [true, event_id]);
+
+        res.send({ message: 'Folder and event updated successfully', status: 200 });
+    } catch (err) {
+        res.status(500).send({ error: 'Failed to update folder and event' });
+    }
 }
