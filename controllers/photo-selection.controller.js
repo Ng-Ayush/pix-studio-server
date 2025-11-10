@@ -769,77 +769,6 @@ exports.uploadPhotos = async (req, res) => {
         res.status(500).send({ message: "Upload failed", error: error.message, status: 500 });
     }
 };
-
-function enqueueFolderBatch(folder_id, event_id, batchPhotos) {
-    if (!processingFolders.has(folder_id)) {
-        processingFolders.set(folder_id, { busy: false, queue: [] });
-    }
-    const folderData = processingFolders.get(folder_id);
-    folderData.queue.push({ event_id, batchPhotos });
-
-    if (!folderData.busy) {
-        processFolderQueue(folder_id);
-    }
-}
-
-async function processFolderQueue(folder_id) {
-    const folderData = processingFolders.get(folder_id);
-    if (!folderData || folderData.busy) return;
-    folderData.busy = true;
-
-    const [[{ event_id }]] = await pool.execute('SELECT event_id FROM folders WHERE id = ?', [folder_id]);
-
-    if (!modelsLoaded) {
-        await loadModels();
-        modelsLoaded = true;
-    }
-
-    try {
-        while (folderData.queue.length > 0) {
-            const { batchPhotos } = folderData.queue.shift();
-
-            for (const photo of batchPhotos) {
-                try {
-                    const descriptor = await extractFaceDescriptor(photo.url);
-                    if (descriptor && descriptor.length > 0) {
-                        await pool.execute(
-                            'UPDATE photos SET face_descriptor = ?, descriptor_ready = true WHERE folder_id = ? AND photo_url = ?',
-                            [JSON.stringify(descriptor), folder_id, photo.url]
-                        );
-                    } else {
-                        await pool.execute(
-                            'UPDATE photos SET face_descriptor = NULL, descriptor_ready = false WHERE folder_id = ? AND photo_url = ?',
-                            [folder_id, photo.url]
-                        );
-                    }
-                } catch (err) {
-                    console.error('Descriptor extraction failed for', photo.url, err);
-                }
-            }
-            console.log(`Processed batch for folder ${folder_id}`);
-        }
-
-        // All batches processed; now update folder and event flags once
-        await pool.execute('UPDATE folders SET isFaceDescriptorReady = true WHERE id = ?', [folder_id]);
-
-        // This checks if all folders in the event are ready
-        const [[{ not_ready }]] = await pool.execute(
-            'SELECT COUNT(*) as not_ready FROM folders WHERE event_id = ? AND isFaceDescriptorReady = false',
-            [event_id]
-        );
-
-        if (not_ready === 0) {
-            await pool.execute('UPDATE events SET isFaceDescriptorReady = true WHERE id = ?', [event_id]);
-        }
-
-        folderData.busy = false;
-        processingFolders.delete(folder_id);
-    } catch (error) {
-        folderData.busy = false;
-        console.log("GOT INITIAL ERROR ", error);
-    }
-}
-
 // exports.checkEventReady = async (req, res) => {
 //     try {
 //         const { event_id } = req.params;
@@ -1231,5 +1160,48 @@ exports.updateFaceDescriptorEvent = async (req, res) => {
         res.send({ message: 'Folder and event updated successfully', status: 200 });
     } catch (err) {
         res.status(500).send({ error: 'Failed to update folder and event' });
+    }
+}
+
+exports.reUploadFaceDescriptor = async (req, res) => {
+    const { event_id } = req.params;
+    try {
+        const [rows] = await pool.query(`
+      SELECT 
+          e.created_by AS uploaded_by,
+          e.is_ai_upload,
+          e.event_name,
+          e.id AS event_id,
+          f.id AS folder_id,
+          p.photo_url AS url,
+          p.photo_name AS name
+      FROM events e
+      JOIN folders f ON f.event_id = e.id
+      JOIN photos p ON p.folder_id = f.id
+      WHERE e.id = ?;
+    `, [event_id]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'Event not found or no photos.' });
+        }
+
+        const response = {
+            uploadedUrls: rows.map(row => ({
+                folder_id: row.folder_id,
+                url: row.url,
+                name: row.name
+            })),
+            uploaded_by: rows[0].uploaded_by,
+            event_id: rows[0].event_id,
+            is_ai_upload: !!rows[0].is_ai_upload,
+            wedding_folder_id: rows[0].wedding_folder_id
+        };
+
+        await triggerExternalExtraction('',event_id,response.uploadedUrls,'');
+
+        res.send({ status: 200, message: 'Photos re-uploaded for face process successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error',message: "Something went wrong" });
     }
 }

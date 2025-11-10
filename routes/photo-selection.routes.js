@@ -37,6 +37,7 @@ router.post("/find-person",upload.single('input_img'),photoSelectionController.f
 
 router.get("/getTotalUploadedAiPhotosCount",authMiddleware, photoSelectionController.getTotalUploadedAiPhotosCount);
 router.post("/updateFaceDescriptorEvent/:event_id", photoSelectionController.updateFaceDescriptorEvent);
+router.post("/reUploadFaceDescriptor/:event_id", photoSelectionController.reUploadFaceDescriptor);
 
 
 module.exports = router;
