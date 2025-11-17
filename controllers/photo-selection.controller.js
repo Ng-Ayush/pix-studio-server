@@ -795,12 +795,28 @@ exports.checkEventReady = async (req, res) => {
     try {
         const { wedding_folder_id } = req.params;
 
-        const url = `http://157.173.221.163:8003/check_status/${wedding_folder_id}`
+        const params = {
+            "input": {
+                "method": "GET",
+                "path": `/check_status/${wedding_folder_id}`,
+            }
+        }
 
-        console.log("URLLLLLLLLLLL+++++++++++++++....", url);
+        const url = `https://api.runpod.ai/v2/u9d9u5olceg3dd/runsync`;
 
-        const response = await axios.get(url);
-        res.json({ data: response.data });
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.RUNPOD_API_KEY}`
+
+        };
+        // http://157.173.221.163:8003
+
+        // const url = `http://localhost:8888/check_status/${wedding_folder_id}`;
+
+
+        const response = await axios.post(url,params, { headers });
+        res.json({ data: response.data })
+
         // const eId = Number(req.params.event_id);
         // const [[event]] = await pool.execute(
         //     'SELECT isFaceDescriptorReady FROM events WHERE id = ?',
@@ -988,15 +1004,36 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
 
         if (ai_folder_id) formData.append('wedding_folder_id', ai_folder_id);
 
+        //hostinger server ; http://157.173.221.163:8003
 
-        axios.post('http://157.173.221.163:8003/upload_urls', formData, {
-            headers: formData.getHeaders(),
+        const params = {
+            "input": {
+                "method": "POST",
+                "path": `/upload_urls`,
+                "body": {
+                    "image_urls": JSON.stringify(uploadedUrls.map(u => u.url)),
+                    "wedding_name": row.event_name,
+                    "wedding_folder_id": ai_folder_id,
+                    "bulk_mode": true,
+                    "async_mode": true,
+                }
+
+            }
+        }
+
+        const url = `https://api.runpod.ai/v2/u9d9u5olceg3dd/runsync`;
+
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.RUNPOD_API_KEY}`
+        };
+
+
+        axios.post(url, params, { headers }, {
             maxBodyLength: Infinity, // handle large payloads
         })
             .then(async (response) => {
                 const { wedding_folder_id } = response.data;
-
-
 
                 // eventProcessingMap.get(event_id).delete(folder_id);
 
@@ -1004,7 +1041,7 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
                 //     eventProcessingMap.delete(event_id);  // Clean up map
                 // }
 
-                console.log("✅ Extraction completed:", wedding_folder_id);
+                console.log("✅ Extraction completed:", response.data);
             })
             .catch(err => {
                 console.error("⚠️ External API failed:", err);
@@ -1016,57 +1053,143 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
 };
 
 
+
+
 exports.findPerson = async (req, res) => {
     try {
-        console.log('Request Body:', req.body.wedding_folder_id); // This should contain wedding_folder_id
-        console.log('Request File:', req.file);  // This should contain the file input_img
+        console.log('Request Body:', req.body.wedding_folder_id);
+        console.log('Request File:', req.file);
 
-        const { wedding_folder_id } = req.body;  // Extract wedding_folder_id from req.body
-        const input_img = req.file; //
+        const { wedding_folder_id } = req.body;
+        const input_img = req.file;
 
         // Ensure input_img and wedding_folder_id are provided
         if (!input_img || !wedding_folder_id) {
-            return res.status(400).json({ message: "Missing required fields" });
+            return res.status(400).json({
+                success: false,
+                message: "Missing required fields: input_img and wedding_folder_id are required"
+            });
         }
 
-        // Create FormData for the external API call
-        const formData = new FormData();
-        formData.append('input_img', input_img.buffer, { filename: 'captured_image.jpeg' }); // input_img should be a buffer from the uploaded file
-        formData.append('wedding_folder_id', wedding_folder_id);
+        // Convert image buffer to base64 (without MIME prefix - just the raw base64 string)
+        const base64Image = input_img.buffer.toString("base64");
 
-        // Forward the request to the external API using axios
+        // Prepare request for RunPod API
+        const params = {
+            "input": {
+                "method": "POST",
+                "path": "/find_person",
+                "body": {
+                    "input_img": base64Image,  // Handler will convert this to input_img_base64
+                    "wedding_folder_id": wedding_folder_id
+                }
+            }
+        };
+
+        const url = "https://api.runpod.ai/v2/u9d9u5olceg3dd/runsync";
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.RUNPOD_API_KEY}`
+        };
+
+        console.log('📤 Sending request to RunPod...');
+
+        // const formData = new FormData();
+        // formData.append('input_img', input_img.buffer, { filename: 'captured_image.jpeg' }); // input_img should be a buffer from the uploaded file
+        // formData.append('wedding_folder_id', wedding_folder_id);
 
 
-        //CPU URL HOSTED: http://157.173.221.163:8003/
-
-        // CURREENTRUNPOD : https://fvu6bziok1xwyc-8888.proxy.runpod.net
+        const response = await axios.post(url, params, { headers });
 
 
+        // RunPod response structure:
+        // {
+        //   "id": "...",
+        //   "status": "COMPLETED",
+        //   "output": {
+        //     "body": {
+        //       "status": true/false,
+        //       "message": "...",
+        //       "match_count": 3,
+        //       "matches": [...]
+        //     },
+        //     "statusCode": 200
+        //   }
+        // }
 
-        const response = await axios.post('http://157.173.221.163:8003/find_person', formData, {
-            headers: {
-                ...formData.getHeaders(), // Make sure to include proper headers for FormData
-            },
-        });
+        // Extract the actual response body
+        const responseBody = response.data?.output?.body;
+        const statusCode = response.data?.output?.statusCode;
 
-        // Handle success
-        if (response.data) {
-            console.log('✅ Face match response:', response.data);
-            return res.json({
-                success: true,
-                message: 'Face matched successfully!',
-                match_count: response.data?.match_count,
-                match_list: response.data.matches || [],
+        // Check if request was successful
+        if (statusCode === 200 && responseBody) {
+            const { status, message, match_count, matches } = responseBody;
+
+            if (status === true) {
+                console.log('✅ Face match successful:', {
+                    match_count,
+                    matches_count: matches?.length || 0
+                });
+
+                return res.json({
+                    success: true,
+                    message: message || 'Face matched successfully!',
+                    match_count: match_count || matches?.length || 0,
+                    matches: matches || [],
+                    data: responseBody
+                });
+            } else {
+                // Face not found or other error
+                console.log('⚠ Face match result:', message);
+                return res.json({
+                    success: false,
+                    message: message || 'No matches found',
+                    match_count: 0,
+                    matches: [],
+                    data: responseBody
+                });
+            }
+        } else {
+            // Handle error responses
+            const errorMessage = responseBody?.message || responseBody?.detail || 'Unknown error';
+            console.error('❌ API Error:', errorMessage);
+
+            return res.status(statusCode || 500).json({
+                success: false,
+                message: 'Failed to process face match',
+                error: errorMessage,
+                data: responseBody
             });
         }
 
     } catch (error) {
         console.error('❌ Error during face match process:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Failed to process face match',
-            error: error.message,
-        });
+
+        // Handle axios errors
+        if (error.response) {
+            // API responded with error status
+            const errorBody = error.response.data?.output?.body || error.response.data;
+            return res.status(error.response.status || 500).json({
+                success: false,
+                message: 'API request failed',
+                error: errorBody?.message || error.message,
+                data: errorBody
+            });
+        } else if (error.request) {
+            // Request was made but no response received
+            return res.status(500).json({
+                success: false,
+                message: 'No response from API',
+                error: 'Network error or timeout'
+            });
+        } else {
+            // Error setting up the request
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to process face match',
+                error: error.message
+            });
+        }
     }
 };
 
@@ -1197,11 +1320,11 @@ exports.reUploadFaceDescriptor = async (req, res) => {
             wedding_folder_id: rows[0].wedding_folder_id
         };
 
-        await triggerExternalExtraction('',event_id,response.uploadedUrls,'');
+        await triggerExternalExtraction('', event_id, response.uploadedUrls, '');
 
         res.send({ status: 200, message: 'Photos re-uploaded for face process successfully' });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Internal server error',message: "Something went wrong" });
+        res.status(500).json({ error: 'Internal server error', message: "Something went wrong" });
     }
 }
