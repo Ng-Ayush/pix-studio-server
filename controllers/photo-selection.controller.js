@@ -795,26 +795,26 @@ exports.checkEventReady = async (req, res) => {
     try {
         const { wedding_folder_id } = req.params;
 
-        const params = {
-            "input": {
-                "method": "GET",
-                "path": `/check_status/${wedding_folder_id}`,
-            }
-        }
+        // const params = {
+        //     "input": {
+        //         "method": "GET",
+        //         "path": `/check_status/${wedding_folder_id}`,
+        //     }
+        // }
 
-        const url = `https://api.runpod.ai/v2/u9d9u5olceg3dd/runsync`;
+        // const url = `https://api.runpod.ai/v2/u9d9u5olceg3dd/runsync`;
 
-        const headers = {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.RUNPOD_API_KEY}`
+        // const headers = {
+        //     'Content-Type': 'application/json',
+        //     'Authorization': `Bearer ${process.env.RUNPOD_API_KEY}`
 
-        };
+        // };
         // http://157.173.221.163:8003
 
-        // const url = `http://localhost:8888/check_status/${wedding_folder_id}`;
+        const url = `http://157.173.221.163:8888/check_status/${wedding_folder_id}`;
 
 
-        const response = await axios.post(url,params, { headers });
+        const response = await axios.get(url);
         res.json({ data: response.data })
 
         // const eId = Number(req.params.event_id);
@@ -1072,34 +1072,34 @@ exports.findPerson = async (req, res) => {
         }
 
         // Convert image buffer to base64 (without MIME prefix - just the raw base64 string)
-        const base64Image = input_img.buffer.toString("base64");
+        // const base64Image = input_img.buffer.toString("base64");
 
-        // Prepare request for RunPod API
-        const params = {
-            "input": {
-                "method": "POST",
-                "path": "/find_person",
-                "body": {
-                    "input_img": base64Image,  // Handler will convert this to input_img_base64
-                    "wedding_folder_id": wedding_folder_id
-                }
-            }
-        };
+        // // Prepare request for RunPod API
+        // const params = {
+        //     "input": {
+        //         "method": "POST",
+        //         "path": "/find_person",
+        //         "body": {
+        //             "input_img": base64Image,  // Handler will convert this to input_img_base64
+        //             "wedding_folder_id": wedding_folder_id
+        //         }
+        //     }
+        // };
 
-        const url = "https://api.runpod.ai/v2/u9d9u5olceg3dd/runsync";
-        const headers = {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.RUNPOD_API_KEY}`
-        };
+        // const url = "https://api.runpod.ai/v2/u9d9u5olceg3dd/runsync";
+        // const headers = {
+        //     'Content-Type': 'application/json',
+        //     'Authorization': `Bearer ${process.env.RUNPOD_API_KEY}`
+        // };
 
-        console.log('📤 Sending request to RunPod...');
+        // console.log('📤 Sending request to RunPod...');
 
-        // const formData = new FormData();
-        // formData.append('input_img', input_img.buffer, { filename: 'captured_image.jpeg' }); // input_img should be a buffer from the uploaded file
-        // formData.append('wedding_folder_id', wedding_folder_id);
+        const formData = new FormData();
+        formData.append('input_img', input_img.buffer, { filename: 'captured_image.jpeg' }); // input_img should be a buffer from the uploaded file
+        formData.append('wedding_folder_id', wedding_folder_id);
 
 
-        const response = await axios.post(url, params, { headers });
+        const response = await axios.post(`http://157.173.221.163:8888/find_person`, formData, { ...formData.getHeaders(), maxBodyLength: Infinity });
 
 
         // RunPod response structure:
@@ -1118,53 +1118,21 @@ exports.findPerson = async (req, res) => {
         // }
 
         // Extract the actual response body
-        const responseBody = response.data?.output?.body;
-        const statusCode = response.data?.output?.statusCode;
+        const responseBody = response.data;
+        const statusCode = response.data?.status;
 
-        // Check if request was successful
-        if (statusCode === 200 && responseBody) {
-            const { status, message, match_count, matches } = responseBody;
-
-            if (status === true) {
-                console.log('✅ Face match successful:', {
-                    match_count,
-                    matches_count: matches?.length || 0
-                });
-
+        console.log("GOT FIND PEROSN RESPONE",response.data);
                 return res.json({
-                    success: true,
-                    message: message || 'Face matched successfully!',
-                    match_count: match_count || matches?.length || 0,
-                    matches: matches || [],
+                    success: statusCode,
+                    status:200,
+                    message: responseBody.message || 'Face matched successfully!',
+                    match_count: responseBody.match_count || responseBody.matches?.length || 0,
+                    matches: responseBody.matches || [],
                     data: responseBody
                 });
-            } else {
-                // Face not found or other error
-                console.log('⚠ Face match result:', message);
-                return res.json({
-                    success: false,
-                    message: message || 'No matches found',
-                    match_count: 0,
-                    matches: [],
-                    data: responseBody
-                });
-            }
-        } else {
-            // Handle error responses
-            const errorMessage = responseBody?.message || responseBody?.detail || 'Unknown error';
-            console.error('❌ API Error:', errorMessage);
-
-            return res.status(statusCode || 500).json({
-                success: false,
-                message: 'Failed to process face match',
-                error: errorMessage,
-                data: responseBody
-            });
-        }
 
     } catch (error) {
         console.error('❌ Error during face match process:', error);
-
         // Handle axios errors
         if (error.response) {
             // API responded with error status
