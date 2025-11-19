@@ -23,7 +23,7 @@ const io = socketIo(server, { cors: { origin: '*' } });
 app.use(cors());
 app.use(express.static("public"));
 
-app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.json({ limit: '50mb' }));
 
 // Map to hold WhatsApp clients keyed by user_id
 const clients = new Map();

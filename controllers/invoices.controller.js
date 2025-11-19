@@ -4,6 +4,8 @@ const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
 // CREATE
 const { MessageMedia } = require('whatsapp-web.js');
 const { clients } = require('../whatsappClientManager.js');
+
+const puppeteer = require('puppeteer');
 exports.generateInvoice = async (req, res) => {
   let { invoice_number, invoice_date, due_date, party_id, total, balance_left, invoice_type, payment_type = '', payment_type_description = '', invoice_items, time, phone_number, discount_value = '', discount_type = '' } = req.body;
 
@@ -363,6 +365,58 @@ exports.sendBulkMessage = async (req, res) => {
     res.json({ status: 200, results });
 
   } catch (err) {
-    res.status(500).json({ success: false,status:500, error: err.message });
+    res.status(500).json({ success: false, status: 500, error: err.message });
+  }
+};
+
+exports.generatePdf = async (req, res) => {
+
+  try {
+    const {html} = req.body;
+
+    const browser = await puppeteer.launch({
+      headless: "new",
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-web-security",
+        "--allow-running-insecure-content",
+      ],
+    });
+
+    const page = await browser.newPage();
+
+    await page.goto(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`, {
+      waitUntil: "networkidle2",
+    });
+
+     await page.evaluate(async () => {
+      const selectors = Array.from(document.images).map(img => img.complete
+        ? Promise.resolve()
+        : new Promise(resolve => {
+            img.onload = resolve;
+            img.onerror = resolve;
+          })
+      );
+      await Promise.all(selectors);
+    });
+
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+    });
+
+    await browser.close();
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=invoice.pdf"
+    );
+
+    res.end(pdfBuffer); // <-- IMPORTANT: use end() not send()
+  } catch (err) {
+    console.error("PDF ERROR:", err);
+    res.status(500).send("Failed to generate PDF");
   }
 };
