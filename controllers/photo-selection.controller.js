@@ -815,7 +815,7 @@ exports.checkEventReady = async (req, res) => {
 
 
         const response = await axios.get(url);
-        res.json({ data: response.data })
+        res.send({ data: response.data })
 
         // const eId = Number(req.params.event_id);
         // const [[event]] = await pool.execute(
