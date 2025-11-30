@@ -763,7 +763,7 @@ exports.uploadPhotos = async (req, res) => {
         res.status(200).send({ message: "Batch uploaded, descriptor extraction started", status: 200, isFaceDescriptorReady: false });
 
         if (is_ai_upload) {
-            triggerExternalExtraction(folder_id, event_id, uploadedUrls, wedding_folder_id)
+            // triggerExternalExtraction(folder_id, event_id, uploadedUrls, wedding_folder_id)
         }
     } catch (error) {
         res.status(500).send({ message: "Upload failed", error: error.message, status: 500 });
@@ -829,7 +829,7 @@ exports.checkEventReady = async (req, res) => {
 
         // res.json({ isFaceDescriptorReady: !!event.isFaceDescriptorReady && !stillProcessing });
     } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message });
+        res.status(500).json({ message: "Server error", error: error.message,error });
     }
 };
 
