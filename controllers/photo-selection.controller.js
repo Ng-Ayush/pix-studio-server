@@ -997,7 +997,7 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
         formData.append('image_urls', JSON.stringify(uploadedUrls.map(u => u.url))); // array of URLs
         formData.append('wedding_name', row.event_name); // you can make this dynamic
 
-        let ai_folder_id = `${row.event_name}_${event_id}`;
+        let ai_folder_id = `${row.event_name?.split(" ")?.join("_")}_${event_id}`;
 
         console.log("WEDDING FOLDE IDE", ai_folder_id);
 
@@ -1122,14 +1122,14 @@ exports.findPerson = async (req, res) => {
         const statusCode = response.data?.status;
 
         console.log("GOT FIND PEROSN RESPONE",response.data);
-                return res.json({
-                    success: statusCode,
+        return res.json({
+            success: statusCode,
                     status:200,
-                    message: responseBody.message || 'Face matched successfully!',
-                    match_count: responseBody.match_count || responseBody.matches?.length || 0,
-                    matches: responseBody.matches || [],
-                    data: responseBody
-                });
+            message: responseBody.message || 'Face matched successfully!',
+            match_count: responseBody.match_count || responseBody.matches?.length || 0,
+            matches: responseBody.matches || [],
+            data: responseBody
+        });
 
     } catch (error) {
         console.error('❌ Error during face match process:', error);
@@ -1199,54 +1199,19 @@ exports.getTotalUploadedAiPhotosCount = async (req, res) => {
     }
 };
 
-function incPending(eventId, folderId) {
-    const eId = Number(eventId), fId = Number(folderId);
-    if (!eventProcessingMap.has(eId)) eventProcessingMap.set(eId, new Map());
-    const folderMap = eventProcessingMap.get(eId);
-    const curr = folderMap.get(fId) || { pending: 0, failures: 0 };
-    curr.pending += 1;
-    folderMap.set(fId, curr);
-
-    // optional: top-level view (was your processingFolders)
-    processingFolders.set(fId, (processingFolders.get(fId) || 0) + 1);
-}
-
-function decPending(eventId, folderId, failed = false) {
-    const eId = Number(eventId), fId = Number(folderId);
-    const folderMap = eventProcessingMap.get(eId);
-    if (!folderMap) return { folderDone: false, eventDone: false, folderFailures: 1 };
-
-    const curr = folderMap.get(fId);
-    if (!curr) return { folderDone: false, eventDone: false, folderFailures: 1 };
-
-    curr.pending = Math.max(0, curr.pending - 1);
-    if (failed) curr.failures += 1;
-
-    let folderDone = curr.pending === 0;
-    folderMap.set(fId, curr);
-
-    // maintain the optional per-folder counter map
-    if (processingFolders.has(fId)) {
-        const left = Math.max(0, processingFolders.get(fId) - 1);
-        if (left === 0) processingFolders.delete(fId);
-        else processingFolders.set(fId, left);
-    }
-
-    // event is done when ALL folders pending==0
-    let eventDone = true;
-    for (const v of folderMap.values()) {
-        if (v.pending > 0) { eventDone = false; break; }
-    }
-
-    return { folderDone, eventDone, folderFailures: curr.failures };
-}
-
 
 exports.updateFaceDescriptorEvent = async (req, res) => {
     try {
         const { event_id } = req.params;
 
         await pool.execute('UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?', [true, event_id]);
+        // await pool.execute(`
+        //     UPDATE photos 
+        //     SET descriptor_ready = 1 
+        //     WHERE folder_id IN (
+        //         SELECT id FROM folders WHERE event_id = ?
+        //     )
+        // `, [event_id]);
 
         res.send({ message: 'Folder and event updated successfully', status: 200 });
     } catch (err) {
