@@ -102,7 +102,7 @@ GROUP BY e.id
                 need_customer_number: !!event.need_customer_number,
             };
         });
-        res.send({ message: 'Events fetched successfully', status: 200, data: mergedEvents });
+        res.send({ message: 'Events fetched successfully', status: 200, data: mergedEvents?.sort((a, b) => b?.event_id - a?.event_id) });
 
     } catch (error) {
         res.send({ message: 'Error', error: error, status: 400, data: [] });
