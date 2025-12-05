@@ -1253,7 +1253,7 @@ exports.reUploadFaceDescriptor = async (req, res) => {
       FROM events e
       JOIN folders f ON f.event_id = e.id
       JOIN photos p ON p.folder_id = f.id
-      WHERE e.id = ? AND p.descriptor_ready = 0;
+      WHERE e.id = ?;
     `, [event_id]);
 
         if (rows.length === 0) {
