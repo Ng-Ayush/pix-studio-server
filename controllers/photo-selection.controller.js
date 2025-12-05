@@ -58,6 +58,7 @@ exports.getAllEvents = async (req, res) => {
     e.need_customer_number,
     e.google_review_url,
     e.selected_template,
+    e.isFaceDescriptorReady,
     COUNT(DISTINCT f.id) AS folder_count,
     COUNT(DISTINCT p.id) AS photo_count,
     SUM(CASE WHEN p.is_selected = TRUE THEN 1 ELSE 0 END) AS selected_photo_count,
@@ -100,6 +101,7 @@ GROUP BY e.id
                 is_event_submitted: !!event.is_event_submitted,
                 ai_guests: aiGuestMap[event.event_id] || [],
                 need_customer_number: !!event.need_customer_number,
+                isFaceDescriptorReady: !!event.isFaceDescriptorReady
             };
         });
         res.send({ message: 'Events fetched successfully', status: 200, data: mergedEvents?.sort((a, b) => b?.event_id - a?.event_id) });
@@ -829,7 +831,7 @@ exports.checkEventReady = async (req, res) => {
 
         // res.json({ isFaceDescriptorReady: !!event.isFaceDescriptorReady && !stillProcessing });
     } catch (error) {
-        res.status(500).json({ message: "Server error", error: error.message,error });
+        res.status(500).json({ message: "Server error", error: error.message, error });
     }
 };
 
@@ -1040,6 +1042,7 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
                 // if (eventProcessingMap.get(event_id).size == 0) {
                 //     eventProcessingMap.delete(event_id);  // Clean up map
                 // }
+                await updateFaceDescriptorStatus(event_id);
 
                 console.log("✅ Extraction completed:", response.data);
             })
@@ -1052,6 +1055,23 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
     }
 };
 
+function updateFaceDescriptorStatus(event_id) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            await pool.execute('UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?', [true, event_id]);
+            await pool.execute(`
+            UPDATE photos 
+            SET descriptor_ready = 1 
+            WHERE folder_id IN (
+                SELECT id FROM folders WHERE event_id = ?
+            )
+        `, [event_id]);
+            resolve();
+        } catch (err) {
+            reject(err);
+        }
+    });
+}
 
 
 
@@ -1121,10 +1141,9 @@ exports.findPerson = async (req, res) => {
         const responseBody = response.data;
         const statusCode = response.data?.status;
 
-        console.log("GOT FIND PEROSN RESPONE",response.data);
         return res.json({
             success: statusCode,
-                    status:200,
+            status: 200,
             message: responseBody.message || 'Face matched successfully!',
             match_count: responseBody.match_count || responseBody.matches?.length || 0,
             matches: responseBody.matches || [],
@@ -1205,13 +1224,13 @@ exports.updateFaceDescriptorEvent = async (req, res) => {
         const { event_id } = req.params;
 
         await pool.execute('UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?', [true, event_id]);
-        // await pool.execute(`
-        //     UPDATE photos 
-        //     SET descriptor_ready = 1 
-        //     WHERE folder_id IN (
-        //         SELECT id FROM folders WHERE event_id = ?
-        //     )
-        // `, [event_id]);
+        await pool.execute(`
+            UPDATE photos 
+            SET descriptor_ready = 1 
+            WHERE folder_id IN (
+                SELECT id FROM folders WHERE event_id = ?
+            )
+        `, [event_id]);
 
         res.send({ message: 'Folder and event updated successfully', status: 200 });
     } catch (err) {
@@ -1234,7 +1253,7 @@ exports.reUploadFaceDescriptor = async (req, res) => {
       FROM events e
       JOIN folders f ON f.event_id = e.id
       JOIN photos p ON p.folder_id = f.id
-      WHERE e.id = ?;
+      WHERE e.id = ? AND p.descriptor_ready = 0;
     `, [event_id]);
 
         if (rows.length === 0) {
@@ -1252,6 +1271,9 @@ exports.reUploadFaceDescriptor = async (req, res) => {
             is_ai_upload: !!rows[0].is_ai_upload,
             wedding_folder_id: rows[0].wedding_folder_id
         };
+
+        console.log(response.uploadedUrls.length, "photos to be re-uploaded for face descriptor");
+
 
         await triggerExternalExtraction('', event_id, response.uploadedUrls, '');
 
