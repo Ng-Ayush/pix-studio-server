@@ -136,4 +136,61 @@ exports.disconnectWhatsApp = async (req, res) => {
         console.error('Error in disconnectWhatsApp:', err);
         res.status(500).json({ error: 'Failed to disconnect WhatsApp client' });
     }
-}
+};
+
+exports.resetDeleteAiPhotoCount = async (req, res) => {
+    try {
+        const { user_id } = req.body;
+        if (!user_id) {
+            return res.status(400).send({
+                status: 400,
+                message: "user_id is required"
+            });
+        }
+
+        const [[{ total_weighted_count }]] = await pool.execute(
+            `SELECT COALESCE(SUM(
+                CASE e.photo_quality
+                  WHEN 'high' THEN 10
+                  WHEN 'standard' THEN 3
+                  ELSE 1
+                END
+              ), 0) AS total_weighted_count
+            FROM photos p
+            JOIN folders f ON p.folder_id = f.id
+            JOIN events e ON f.event_id = e.id
+            WHERE e.created_by = ?
+              AND e.is_ai_upload = 1`,  // Ensure we only count photos from AI-uploaded events
+            [user_id]  // Bind the userId to the query
+        );
+
+        const activeAiPhotos = total_weighted_count || 0;
+
+        await pool.execute(
+            `
+            UPDATE users
+            SET used_photo_count = ?
+            WHERE id = ?
+            `,
+            [activeAiPhotos, user_id]
+        );
+
+        return res.send({
+            status: 200,
+            message: "AI photo usage count reset successfully",
+            data: {
+                user_id,
+                used_photo_count: activeAiPhotos
+            }
+        });
+
+
+    } // Get the user ID from the request
+    catch (error) {
+        return res.send({
+            status: 500,
+            message: "Failed to reset AI photo usage count",
+            error: error.message
+        });
+    }
+};
