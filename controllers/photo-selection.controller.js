@@ -17,12 +17,12 @@ const upload = multer();
 
 exports.createEvent = async (req, res) => {
     try {
-        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false, google_review_url = '', selected_template = '', photo_quality = '' } = req.body;
+        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false, google_review_url = '', selected_template = '', photo_quality = '',event_date ='' } = req.body;
         console.log(req.body);
 
-        const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url, selected_template, photo_quality, req.user.id];
+        const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url, selected_template, photo_quality,event_date, req.user.id];
         const [result] = await pool.execute(
-            'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload,payment_id, browse_all_photo_ai, ai_cover_images,watermark,youtube_cover_url,need_customer_number,google_review_url,selected_template,photo_quality, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload,payment_id, browse_all_photo_ai, ai_cover_images,watermark,youtube_cover_url,need_customer_number,google_review_url,selected_template,photo_quality,event_date, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             value
         );
 
@@ -60,6 +60,7 @@ exports.getAllEvents = async (req, res) => {
     e.selected_template,
     e.isFaceDescriptorReady,
     e.photo_quality,
+    e.event_date,
     COUNT(DISTINCT f.id) AS folder_count,
     COUNT(DISTINCT p.id) AS photo_count,
     SUM(CASE WHEN p.is_selected = TRUE THEN 1 ELSE 0 END) AS selected_photo_count,
@@ -117,14 +118,14 @@ GROUP BY e.id
 exports.updateEvent = async (req, res) => {
     try {
         const { event_id } = req.params;
-        const { is_event_submitted, event_name, browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false, google_review_url = '', selected_template = '', photo_quality = '' } = req.body;
+        const { is_event_submitted, event_name, browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false, google_review_url = '', selected_template = '', photo_quality = '',event_date ='' } = req.body;
 
-        let query = `UPDATE events SET is_event_submitted = ?, browse_all_photo_ai = ?,ai_cover_images = ?,watermark = ?, youtube_cover_url = ?,need_customer_number = ?,google_review_url = ?,selected_template = ?, photo_quality = ? WHERE id = ?`;
-        let value = [is_event_submitted, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url, selected_template, photo_quality, +event_id];
+        let query = `UPDATE events SET is_event_submitted = ?, browse_all_photo_ai = ?,ai_cover_images = ?,watermark = ?, youtube_cover_url = ?,need_customer_number = ?,google_review_url = ?,selected_template = ?, photo_quality = ?,event_date = ? WHERE id = ?`;
+        let value = [is_event_submitted, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url, selected_template, photo_quality,event_date, +event_id];
 
         if (event_name) {
-            query = `UPDATE events SET is_event_submitted = ?, event_name = ?, browse_all_photo_ai = ?, ai_cover_images = ?,watermark = ?,youtube_cover_url = ?,need_customer_number = ?,google_review_url = ?,selected_template = ?, photo_quality = ? WHERE id = ?`;
-            value = [is_event_submitted, event_name, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url, selected_template, photo_quality, +event_id];
+            query = `UPDATE events SET is_event_submitted = ?, event_name = ?, browse_all_photo_ai = ?, ai_cover_images = ?,watermark = ?,youtube_cover_url = ?,need_customer_number = ?,google_review_url = ?,selected_template = ?, photo_quality = ?, event_date= ? WHERE id = ?`;
+            value = [is_event_submitted, event_name, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, google_review_url, selected_template, photo_quality,event_date, +event_id];
         }
 
         const [result] = await pool.execute(query, value);
@@ -273,6 +274,7 @@ exports.getUploadedPhotosByFolderId = async (req, res) => {
     e.selected_template,
     e.isFaceDescriptorReady,
     e.photo_quality,
+    e.event_date,
     f.folder_name,
     f.id AS folder_id,
     p.id AS photo_id,
@@ -305,6 +307,7 @@ WHERE f.id = ?;`
             need_customer_number: !!result[0]?.need_customer_number,
             isFaceDescriptorReady: result[0]?.isFaceDescriptorReady,
             photo_quality: result[0]?.photo_quality,
+            event_date: result[0]?.event_date,
             photos: result
                 .filter(row => row.photo_id !== null)
                 .map(row => ({
