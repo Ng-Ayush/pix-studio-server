@@ -5,10 +5,8 @@ var otpForVerification = 0;
 const jwt = require("jsonwebtoken");
 const pool = require('../db_config/db.js');
 const nodemailer = require('nodemailer');
-const { initWhatsAppClientForAdmin, clients } = require('../whatsappClientManager.js');
 const fs = require('fs');
 const path = require('path');
-const { Client, LocalAuth } = require('whatsapp-web.js');
 // const WA_SESSIONS_DIR = path.resolve(__dirname, '../../.wwebjs_auth');
 
 exports.sendOtp = async (req, res) => {
@@ -83,62 +81,6 @@ exports.sendOtp = async (req, res) => {
     }
 };
 
-async function setupWhatsAppHandlers(client, user_id, io) {
-    client.on('qr', async qr => {
-        await pool.query(`
-      INSERT INTO whatsapp_sessions (user_id, status, qr_code, last_connected)
-      VALUES (?, 'pending', ?, NOW())
-      ON DUPLICATE KEY UPDATE status='pending', qr_code=VALUES(qr_code), updated_at=NOW()
-    `, [user_id, qr]);
-
-        io.to(`user_${user_id}`).emit('qr', qr);
-    });
-
-    client.on('authenticated', async () => {
-        const waNumber = client.info?.wid?.user || null;
-
-        await pool.query(`
-      INSERT INTO whatsapp_sessions (user_id, wa_number, status, last_connected)
-      VALUES (?, ?, 'ready', NOW())
-      ON DUPLICATE KEY UPDATE wa_number=VALUES(wa_number), status='ready', last_connected=NOW(), updated_at=NOW()
-    `, [user_id, waNumber]);
-
-        io.to(`user_${user_id}`).emit('authenticated');
-    });
-
-    client.on('ready', async () => {
-        await pool.query(`
-      UPDATE whatsapp_sessions SET status='ready', last_connected=NOW(), updated_at=NOW()
-      WHERE user_id=?
-    `, [user_id]);
-
-        client.isReady = true;
-
-        io.to(`user_${user_id}`).emit('ready');
-    });
-
-    client.on('auth_failure', msg => {
-        io.to(`user_${user_id}`).emit('auth_failure', msg);
-        console.error(`Auth failure for user ${user_id}:`, msg);
-    });
-
-    client.on('disconnected', async reason => {
-        clients.delete(user_id);
-
-        await pool.query(`
-      UPDATE whatsapp_sessions SET status='disconnected', updated_at=NOW()
-      WHERE user_id=?
-    `, [user_id]);
-
-        io.to(`user_${user_id}`).emit('disconnected', reason);
-        console.warn(`WhatsApp disconnected for user ${user_id}:`, reason);
-    });
-
-    client.on('change_state', state => {
-        io.to(`user_${user_id}`).emit('change_state', state);
-        console.log(`WhatsApp client state changed for user ${user_id}:`, state);
-    });
-}
 
 exports.verifyOTPForPinUser = async (req, res) => {
     try {

@@ -2,7 +2,6 @@ require("dotenv").config();
 const express = require("express");
 const http = require('http');
 const socketIo = require('socket.io');
-const { Client, LocalAuth } = require('whatsapp-web.js');
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const path = require("path");

@@ -1,6 +1,6 @@
 const pool = require('../db_config/db.js');
-const twilio = require("twilio");
-const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
+// const twilio = require("twilio");
+// const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
 // CREATE
 const { MessageMedia } = require('whatsapp-web.js');
 const { clients } = require('../whatsappClientManager.js');
@@ -30,14 +30,11 @@ exports.generateInvoice = async (req, res) => {
 
     for (const item of JSON.parse(invoice_items)) {
       if (item.id) {
-        console.log("SDJHKDBSKDD");
-
         await pool.execute(
           `UPDATE invoice_items SET invoice_id = ?, status = 'finalized' WHERE id = ? AND created_by = ?`,
           [invoice_id, item.id, req.user.id]
         );
       } else {
-        console.log("INVJDHCHCKJ", invoice_id, req.user.id, item.item_name, item.description, item.sale_price, item.quantity, item.booking_date, item.location);
         // New item - insert
         await pool.execute(
           `INSERT INTO invoice_items (invoice_id, created_by, item_name, description, sale_price, quantity, booking_date, location, status)
@@ -324,6 +321,9 @@ exports.sendPdfViaWhatsApp = async (req, res) => {
     const userId = req.user.id;
     const client = clients.get(userId);
 
+    // console.log(client);
+    
+
     if (!client || !client.isReady) {
       return res.status(503).json({ error: "WhatsApp client not connected or ready." });
     }
@@ -340,7 +340,7 @@ exports.sendPdfViaWhatsApp = async (req, res) => {
     await client.sendMessage(number, media);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message, err });
   }
 };
 
