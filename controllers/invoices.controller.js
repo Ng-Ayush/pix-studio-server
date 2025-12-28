@@ -379,11 +379,11 @@ exports.sendBulkMessage = async (req, res) => {
         await new Promise(r => setTimeout(r, 1500));
 
       } catch (err) {
-        results.push({ number, success: false, error: err.message });
+        results.push({ number, status: 500, error: err.message });
       }
     }
 
-    res.send({ success: 200, results });
+    res.send({ status: 200, results });
 
   } catch (err) {
     res.send({ error: err.message, status: 500 });
