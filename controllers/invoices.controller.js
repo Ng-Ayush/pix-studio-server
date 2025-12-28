@@ -1,9 +1,8 @@
 const pool = require('../db_config/db.js');
+const waClients = require('../server.js');
 // const twilio = require("twilio");
 // const client = twilio(process.env.TWILIO_SID, process.env.TWILIO_AUTH_TOKEN);
 // CREATE
-const { MessageMedia } = require('whatsapp-web.js');
-const { clients } = require('../whatsappClientManager.js');
 
 const puppeteer = require('puppeteer');
 exports.generateInvoice = async (req, res) => {
@@ -315,32 +314,45 @@ function formatDate(date) {
 }
 
 
+function getClientOrFail(userId, res) {
+  const client = waClients.get(userId);
+  if (!client) {
+    res.send({ error: "WhatsApp not connected", status: 503 });
+    return null;
+  }
+  return client;
+}
+
+
+
 exports.sendPdfViaWhatsApp = async (req, res) => {
   try {
     const { number, pdfBase64, fileName } = req.body;
     const userId = req.user.id;
-    const client = clients.get(userId);
 
-    // console.log(client);
-    
+    const client = getClientOrFail(userId, res);
+    if (!client) return;
 
-    if (!client || !client.isReady) {
-      return res.status(503).json({ error: "WhatsApp client not connected or ready." });
-    }
+    // const chatId = `${number}@c.us`;
+    const chatId = number;
 
-    const [rows] = await pool.query(`
-      SELECT status FROM whatsapp_sessions WHERE user_id=? AND status='ready' LIMIT 1
-    `, [userId]);
+    // save base64 to temp file
+    const base64Data = pdfBase64.startsWith('data:')
+      ? pdfBase64
+      : `data:application/pdf;base64,${pdfBase64}`;
 
-    if (rows.length === 0) {
-      return res.status(503).json({ error: "WhatsApp session is not active in database." });
-    }
+    await client.sendFile(
+      chatId,
+      base64Data,
+      fileName || 'invoice.pdf',
+      'Here is your PDF 📄'
+    );
 
-    const media = new MessageMedia('application/pdf', pdfBase64, fileName || 'invoice.pdf');
-    await client.sendMessage(number, media);
-    res.json({ success: true });
+    res.send({ success: 200 });
+
   } catch (err) {
-    res.status(500).json({ error: err.message, err });
+    console.error(err);
+    res.send({ error: err.message, status: 500 });
   }
 };
 
@@ -349,30 +361,96 @@ exports.sendBulkMessage = async (req, res) => {
     const { numbers, message } = req.body;
     const userId = req.user.id;
 
-    const client = clients.get(userId);
+    const client = getClientOrFail(userId, res);
+    if (!client) return;
+
     const results = [];
 
     for (const number of numbers) {
+      const chatId = `${number}@c.us`;
+
+      console.log("CHAT ID +++++++++++",chatId);
+      
       try {
-        const waId = `91${number}@c.us`;
-        await client.sendMessage(waId, message);
+        await client.sendText(chatId, message);
         results.push({ number, success: true });
-      } catch (error) {
-        results.push({ number, success: false, error: error.message });
+
+        // 🛑 throttle to avoid bans
+        await new Promise(r => setTimeout(r, 1500));
+
+      } catch (err) {
+        results.push({ number, success: false, error: err.message });
       }
     }
 
-    res.json({ status: 200, results });
+    res.send({ success: 200, results });
 
   } catch (err) {
-    res.status(500).json({ success: false, status: 500, error: err.message });
+    res.send({ error: err.message, status: 500 });
   }
 };
+
+
+
+// exports.sendPdfViaWhatsApp = async (req, res) => {
+//   try {
+//     const { number, pdfBase64, fileName } = req.body;
+//     const userId = req.user.id;
+//     const client = clients.get(userId);
+
+//     console.log(clients);
+
+
+
+//     if (!client || !client.isReady) {
+//       return res.status(503).json({ error: "WhatsApp client not connected or ready." });
+//     }
+
+//     const [rows] = await pool.query(`
+//       SELECT status FROM whatsapp_sessions WHERE user_id=? AND status='ready' LIMIT 1
+//     `, [userId]);
+
+//     if (rows.length === 0) {
+//       return res.status(503).json({ error: "WhatsApp session is not active in database." });
+//     }
+
+//     const media = new MessageMedia('application/pdf', pdfBase64, fileName || 'invoice.pdf');
+//     await client.sendMessage(number, media);
+//     res.json({ success: true });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message, err });
+//   }
+// };
+
+// exports.sendBulkMessage = async (req, res) => {
+//   try {
+//     const { numbers, message } = req.body;
+//     const userId = req.user.id;
+
+//     const client = clients.get(userId);
+//     const results = [];
+
+//     for (const number of numbers) {
+//       try {
+//         const waId = `91${number}@c.us`;
+//         await client.sendMessage(waId, message);
+//         results.push({ number, success: true });
+//       } catch (error) {
+//         results.push({ number, success: false, error: error.message });
+//       }
+//     }
+
+//     res.json({ status: 200, results });
+
+//   } catch (err) {
+//     res.status(500).json({ success: false, status: 500, error: err.message });
+//   }
+// };
 
 exports.generatePdf = async (req, res) => {
 
   try {
-    const {html} = req.body;
+    const { html } = req.body;
 
     const browser = await puppeteer.launch({
       headless: "new",
@@ -390,13 +468,13 @@ exports.generatePdf = async (req, res) => {
       waitUntil: "networkidle2",
     });
 
-     await page.evaluate(async () => {
+    await page.evaluate(async () => {
       const selectors = Array.from(document.images).map(img => img.complete
         ? Promise.resolve()
         : new Promise(resolve => {
-            img.onload = resolve;
-            img.onerror = resolve;
-          })
+          img.onload = resolve;
+          img.onerror = resolve;
+        })
       );
       await Promise.all(selectors);
     });
