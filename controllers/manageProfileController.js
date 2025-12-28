@@ -238,45 +238,89 @@ exports.connectToWhatsApp = async (req, res) => {
 };
 
 // -------------------- DISCONNECT WHATSAPP (MANUAL) --------------------
+// exports.disconnectWhatsApp = async (req, res) => {
+//     try {
+//         const userId = req.user.id || req.params.userId;
+//         const io = req.app.locals.io;
+
+//         if (!userId) {
+//             return res.send({ message: 'User id missing', status: 400 });
+//         }
+
+//         console.log(`🚪 Logical WhatsApp disconnect for ${userId}`);
+
+//         // ✅ Just remove from memory (no destroy, no logout)
+//         if (waClients.has(userId)) {
+//             const client = waClients.get(userId);
+//             client.isReady = false;
+//             waClients.delete(userId);
+//         }
+
+//         // ✅ Delete DB entry only
+//         await pool.query(
+//             `DELETE FROM whatsapp_sessions WHERE user_id = ?`,
+//             [userId]
+//         );
+
+//         io.to(`user_${userId}`).emit('wa_disconnected', 'User manually disconnected');
+
+//         return res.send({
+//             status: 200,
+//             message: 'WhatsApp disconnected successfully'
+//         });
+
+//     } catch (err) {
+//         console.error('disconnectWhatsApp error:', err);
+//         return res.send({
+//             message: 'Failed to disconnect WhatsApp',
+//             status: 500,
+//         });
+//     }
+// };
+
+
+
 exports.disconnectWhatsApp = async (req, res) => {
     try {
-        const userId = req.user.id || req.params.userId;
-        const io = req.app.locals.io;
+        const userId = req.user.id;
+        const sessionId = `user_${userId}`;
+        const client = waClients.get(userId);
 
-        if (!userId) {
-            return res.send({ message: 'User id missing', status: 400 });
+        if (!client) {
+            return res.send({ status: 400, message: "No active session" });
         }
 
-        console.log(`🚪 Logical WhatsApp disconnect for ${userId}`);
+        // 🔒 Logout WhatsApp
+        await client.logout();
 
-        // ✅ Just remove from memory (no destroy, no logout)
-        if (waClients.has(userId)) {
-            const client = waClients.get(userId);
-            client.isReady = false;
-            waClients.delete(userId);
+        // 🧹 Remove from memory
+        waClients.delete(userId);
+
+        // 🗃️ Remove from DB
+        // await SessionModel.deleteOne({ userId });
+
+        // 🗑️ Force delete session folder (Linux)
+        const sessionPath = path.join(process.cwd(), `_IGNORE_${sessionId}`);
+
+        if (fs.existsSync(sessionPath)) {
+            fs.rmSync(sessionPath, { recursive: true, force: true });
+            console.log("🗑️ Deleted session folder:", sessionPath);
+        } else {
+            console.log("ℹ️ Session folder not found:", sessionPath);
         }
-
-        // ✅ Delete DB entry only
-        await pool.query(
-            `DELETE FROM whatsapp_sessions WHERE user_id = ?`,
-            [userId]
-        );
-
-        io.to(`user_${userId}`).emit('wa_disconnected', 'User manually disconnected');
 
         return res.send({
             status: 200,
-            message: 'WhatsApp disconnected successfully'
+            message: "WhatsApp disconnected successfully"
         });
 
     } catch (err) {
-        console.error('disconnectWhatsApp error:', err);
-        return res.send({
-            message: 'Failed to disconnect WhatsApp',
-            status: 500,
-        });
+        console.error("❌ Disconnect error:", err);
+        return res.send({ status: 500, error: err.message });
     }
 };
+
+
 
 // -------------------- RESET AI PHOTO COUNT --------------------
 exports.resetDeleteAiPhotoCount = async (req, res) => {
