@@ -2,7 +2,6 @@ const pool = require('../db_config/db.js');
 const admin = require('firebase-admin');
 const serviceAccount = require('../config/firebase-service-account.json');
 const path = require('path');
-const { loadModels, extractFaceDescriptor, processUploadedPhotosConcurrently } = require('../models/faceapi.js');
 const axios = require('axios');
 const FormData = require('form-data');
 admin.initializeApp({
@@ -493,90 +492,6 @@ exports.submitEvent = async (req, res) => {
     }
 };
 
-
-// exports.getAllPhotosByEventId = async (req, res) => {
-//     try {
-//         const { event_id } = req.params;
-//         const { user } = req.query;
-
-//         const [result] = await pool.execute('SELECT p.*,f.folder_name FROM photos p JOIN folders f ON p.folder_id = f.id WHERE folder_id IN (SELECT id FROM folders WHERE event_id = ?) AND uploaded_by = ?', [event_id, user]);
-//         res.send({ message: 'Photos fetched successfully', data: result, status: 200 });
-//     } catch (err) {
-//         console.error(err);
-//         res.status(500).send({ error: 'Internal server error' });
-//     }
-// };
-
-// exports.getAllPhotosByEventId = async (req, res) => {
-//     try {
-//         let { event_id } = req.params;
-//         let { user, page = 1, limit = 50 } = req.query;
-
-//         let offset = (page - 1) * limit;
-
-//         event_id = Number(event_id);
-//         user = Number(user);
-//         page = Number(page);
-//         limit = Number(limit);
-
-
-//         // Get total count
-//         const [countResult] = await pool.query(
-//             `SELECT COUNT(DISTINCT p.id) as total 
-//              FROM photos p 
-//              JOIN folders f ON p.folder_id = f.id 
-//              WHERE f.event_id = ? AND p.uploaded_by = ?`,
-//             [event_id, user]
-//         );
-
-//         const total = countResult[0].total;
-
-//         const query = `
-//     SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id,
-//                     p.photo_name, p.face_descriptor, p.descriptor_ready,
-//                     p.is_selected, p.is_favourite, f.folder_name
-//      FROM photos p
-//      JOIN folders f ON p.folder_id = f.id
-//      WHERE f.event_id = ${event_id} AND p.uploaded_by = ${user}
-//      ORDER BY f.folder_name, p.id ASC
-//      LIMIT ${limit} OFFSET ${offset}
-// `;
-
-
-
-//         // Fetch paginated data - DISTINCT to avoid duplicates
-//         const [result] = await pool.query(
-//             `SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id, 
-//                     p.photo_name, p.face_descriptor, p.descriptor_ready, 
-//                     p.is_selected, p.is_favourite, f.folder_name
-//              FROM photos p 
-//              JOIN folders f ON p.folder_id = f.id 
-//              WHERE f.event_id = ? AND p.uploaded_by = ?
-//              ORDER BY f.folder_name, p.id ASC
-//              LIMIT ? OFFSET ?`,
-//             [event_id, user, limit, offset]
-//         );
-
-//         res.send({
-//             message: 'Photos fetched successfully',
-//             data: result,
-//             pagination: {
-//                 total,
-//                 page: parseInt(page),
-//                 limit: parseInt(limit),
-//                 totalPages: Math.ceil(total / limit),
-//                 currentCount: result.length
-//             },
-//             status: 200
-//         });
-//     } catch (err) {
-//         console.error(err);
-//         res.status(500).send({ error: 'Internal server error' });
-//     }
-// };
-
-
-
 exports.getAllPhotosByEventId = async (req, res) => {
     try {
         let { event_id } = req.params;
@@ -688,58 +603,6 @@ exports.getFoldersByEventId = async (req, res) => {
     }
 };
 
-// exports.getAllPhotosByEventId = async (req, res) => {
-//     try {
-//         const { event_id } = req.params;
-//         const { user, page = 1, limit = 10 } = req.query; // Default 50 photos per request
-
-//         console.log(event_id, user , page, limit);
-
-
-//         const offset = (page - 1) * limit;
-
-//         // Get total count for pagination info
-//         const [countResult] = await pool.execute(
-//             'SELECT COUNT(*) as total FROM photos p WHERE folder_id IN (SELECT id FROM folders WHERE event_id = ?) AND uploaded_by = ?', 
-//             [event_id, user]
-//         );
-
-//         const total = countResult[0].total;
-
-//         // Fetch paginated data with proper indexing
-//         const [result] = await pool.execute(
-//             `SELECT p.*, f.folder_name 
-//              FROM photos p 
-//              JOIN folders f ON p.folder_id = f.id 
-//              WHERE f.event_id = ? AND p.uploaded_by = ?
-//              ORDER BY p.id DESC
-//              LIMIT ? OFFSET ?`,
-//             [event_id, user, parseInt(limit), offset]
-//         );
-
-//         res.send({ 
-//             message: 'Photos fetched successfully', 
-//             data: result, 
-//             pagination: {
-//                 total,
-//                 page: parseInt(page),
-//                 limit: parseInt(limit),
-//                 totalPages: Math.ceil(total / limit)
-//             },
-//             status: 200 
-//         });
-//     } catch (err) {
-//         console.error(err);
-//         res.status(500).send({ error: 'Internal server error' });
-//     }
-// };
-
-
-let modelsLoaded = false;
-const processingFolders = new Map();
-const eventProcessingMap = new Map();
-let index = 0;
-
 exports.uploadPhotos = async (req, res) => {
     try {
         const { uploaded_by, folder_id, event_id, uploadedUrls, is_ai_upload = false, wedding_folder_id = null, photo_quality = 'basic' } = req.body;    //wedding_folder_id is the isFaceDescriptor value , previous it was true or false but now a string 
@@ -790,27 +653,6 @@ exports.uploadPhotos = async (req, res) => {
         res.status(500).send({ message: "Upload failed", error: error.message, status: 500 });
     }
 };
-// exports.checkEventReady = async (req, res) => {
-//     try {
-//         const { event_id } = req.params;
-
-//         const [[event]] = await pool.execute(
-//             'SELECT isFaceDescriptorReady FROM events WHERE id = ?',
-//             [event_id]
-//         );
-
-//         if (!event) {
-//             return res.status(404).json({ message: "Event not found" });
-//         }
-
-//         const isStillProcessing = eventProcessingMap.has(Number(event_id));
-//         res.json({ isFaceDescriptorReady: !!event.isFaceDescriptorReady && !isStillProcessing });
-//     } catch (error) {
-//         res.status(500).json({ message: "Server error", error: error.message });
-//     }
-// };
-
-
 
 exports.checkEventReady = async (req, res) => {
     try {
@@ -876,140 +718,8 @@ exports.checkIsBrowseAllFolderStatus = async (req, res) => {
     }
 }
 
-// async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, upload_folder_id) {
-//     try {
-
-//         console.log(uploadedUrls.length, "photos to be uploaded", index);
-//         index++;
-
-//         if (!eventProcessingMap.has(event_id)) {
-//             eventProcessingMap.set(event_id, new Set());
-//         }
-//         eventProcessingMap.get(event_id).add(folder_id);
-
-//         const [[row]] = await pool.execute('SELECT event_name FROM events WHERE id = ?', [event_id]);
-
-
-//         const formData = new FormData();
-//         formData.append('image_urls', JSON.stringify(uploadedUrls.map(u => u.url))); // array of URLs
-//         formData.append('wedding_name', row.event_name); // you can make this dynamic
-//         if (upload_folder_id) formData.append('wedding_folder_id', upload_folder_id);
-//         // https://81ca5f69-cc38-48e6-8359-5a575ac4d036-00-16uzz8s2qqhet.worf.replit.dev
-
-//         //https://fp4xi6xrzdflsh-8888.proxy.runpod.net/?token=eg8b93bwxzw4wbjqeqyk
-
-//         //http://157.173.221.163:8003
-
-
-//         axios.post('https://fp4xi6xrzdflsh-8888.proxy.runpod.net/upload_urls', formData, {
-//             headers: formData.getHeaders(),
-//             maxBodyLength: Infinity, // handle large payloads
-//         })
-//             .then(async (response) => {
-//                 const { wedding_folder_id } = response.data;
-
-//                 // await pool.execute(
-//                 //     'UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?',
-//                 //     [true, folder_id]
-//                 // );
-//                 // await pool.execute(
-//                 //     'UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?',
-//                 //     [true, event_id]
-//                 // );
-
-//                 console.log("EENT PROCESS HERE", eventProcessingMap);
-
-
-
-//                 await pool.execute('UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?', [true, folder_id]);
-
-//                 eventProcessingMap.get(event_id).delete(folder_id);
-
-//                 if (eventProcessingMap.get(event_id).size == 0) {
-//                     await pool.execute('UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?', [true, event_id]);
-//                     eventProcessingMap.delete(event_id);  // Clean up map
-//                 }
-
-//                 console.log("✅ Extraction completed:", wedding_folder_id);
-//             })
-//             .catch(err => {
-//                 console.error("⚠️ External API failed:", err);
-//             });
-
-//     } catch (error) {
-//         console.error("⚠️ triggerExternalExtraction error:", error.message);
-//     }
-// };
-
-// async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, upload_folder_id) {
-//     const eId = Number(event_id);
-//     const fId = Number(folder_id);
-//     let failed = false;
-
-//     try {
-//         console.log(uploadedUrls.length, "photos to be uploaded", index);
-//         index++;
-
-//         incPending(eId, fId);
-
-//         const [[row]] = await pool.execute('SELECT event_name FROM events WHERE id = ?', [eId]);
-
-//         const formData = new FormData();
-//         formData.append('image_urls', JSON.stringify(uploadedUrls.map(u => u.url)));
-//         formData.append('wedding_name', row?.event_name || `event_${eId}`);
-//         if (upload_folder_id) formData.append('wedding_folder_id', upload_folder_id);
-
-//         // RUN POD OLD : https://fp4xi6xrzdflsh-8888.proxy.runpod.net
-
-//         const response = await axios.post(
-//             'https://fvu6bziok1xwyc-8888.proxy.runpod.net/upload_urls',
-//             formData,
-//             { headers: formData.getHeaders(), maxBodyLength: Infinity }
-//         );
-
-//         console.log("✅ Extraction completed:", response.data?.wedding_folder_id);
-//     } catch (err) {
-//         failed = true;
-//         console.error("⚠️ External API failed:", err?.message || err);
-//     } finally {
-//         const { folderDone, eventDone, folderFailures } = decPending(eId, fId, failed);
-
-//         // Mark folder ready only when ALL its batches finished and none failed
-//         if (folderDone && folderFailures === 0) {
-//             await pool.execute(
-//                 'UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?',
-//                 [true, fId]
-//             );
-//         }
-
-//         // When event’s all folders are done, flip event flag iff no folder had failures
-//         if (eventDone) {
-//             const folderMap = eventProcessingMap.get(eId);
-//             let anyFailures = false;
-//             if (folderMap) {
-//                 for (const v of folderMap.values()) { if (v.failures > 0) { anyFailures = true; break; } }
-//             }
-//             if (!anyFailures) {
-//                 await pool.execute(
-//                     'UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?',
-//                     [true, eId]
-//                 );
-//             }
-//             // cleanup
-//             eventProcessingMap.delete(eId);
-//         }
-//     }
-// }
-
-
-
 async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, upload_folder_id) {
     try {
-        //no use of upload folder_id
-        // if (!eventProcessingMap.has(event_id)) {
-        //     eventProcessingMap.set(event_id, new Set());
-        // }
-        // eventProcessingMap.get(event_id).add(folder_id);
 
         const [[row]] = await pool.execute('SELECT event_name FROM events WHERE id = ?', [event_id]);
 
@@ -1056,11 +766,6 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
             .then(async (response) => {
                 const { wedding_folder_id } = response.data;
 
-                // eventProcessingMap.get(event_id).delete(folder_id);
-
-                // if (eventProcessingMap.get(event_id).size == 0) {
-                //     eventProcessingMap.delete(event_id);  // Clean up map
-                // }
                 await updateFaceDescriptorStatus(event_id);
 
                 console.log("✅ Extraction completed:", response.data);
@@ -1139,23 +844,7 @@ exports.findPerson = async (req, res) => {
 
 
         const response = await axios.post(`http://157.173.221.163:8888/find_person`, formData, { ...formData.getHeaders(), maxBodyLength: Infinity });
-
-
-        // RunPod response structure:
-        // {
-        //   "id": "...",
-        //   "status": "COMPLETED",
-        //   "output": {
-        //     "body": {
-        //       "status": true/false,
-        //       "message": "...",
-        //       "match_count": 3,
-        //       "matches": [...]
-        //     },
-        //     "statusCode": 200
-        //   }
-        // }
-
+       
         // Extract the actual response body
         const responseBody = response.data;
         const statusCode = response.data?.status;
