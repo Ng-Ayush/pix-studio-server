@@ -375,20 +375,16 @@ exports.deletePhotos = async (req, res) => {
     const fileDeletePromises = [];
     const photoIds = [];
 
+    console.log(photos.length);
+    
+
     for (const photo of photos) {
-        const { id, url } = photo;
-        const filePath = extractFirebasePath(url);
-
-        if (!filePath || !id) continue;
-
+        const { id } = photo;
         photoIds.push(id);
-        fileDeletePromises.push(bucket.file(filePath).delete().catch(err => {
-            console.error(`Failed to delete ${filePath}`, err.message);
-        }));
     }
 
     try {
-        await Promise.all(fileDeletePromises);
+        // await Promise.all(fileDeletePromises);
 
         if (photoIds.length > 0) {
             const placeholders = photoIds.map(() => '?').join(',');

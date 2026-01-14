@@ -21,7 +21,7 @@ scheduleAdminExpiryCheck();
 // --------------------------------------------------
 // Ensure upload directory exists
 // --------------------------------------------------
-const uploadDirectory = path.join(__dirname, 'public/uploads');
+const uploadDirectory = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDirectory)) {
   fs.mkdirSync(uploadDirectory, { recursive: true });
 }
@@ -51,7 +51,8 @@ app.locals.io = io;
 app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(express.static('public'));
+// app.use(express.static('uploads'));
+app.use('/uploads', express.static('uploads'));
 
 // --------------------------------------------------
 // Socket connection handling
@@ -88,6 +89,7 @@ app.use('/api/mystudio/manage-features', require('./routes/manageFeatureRoute.js
 app.use('/api/mystudio/customer-request', require('./routes/customerRequestRoute.js'));
 app.use('/api/mystudio/manage-profile', require('./routes/manageProfileRoute.js'));
 app.use('/api/mystudio/calling', require('./routes/calling.routes.js'));
+app.use('/api/mystudio/photos', require('./routes/upload.routes.js'));
 
 // --------------------------------------------------
 // Health check
