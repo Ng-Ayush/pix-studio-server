@@ -14,6 +14,10 @@ const multer = require('multer');
 
 const upload = multer();
 
+const baseImgUrl = 'http://localhost:3000';
+// const baseImgUrl = 'http://103.67.239.58:3000';
+
+
 exports.createEvent = async (req, res) => {
     try {
         const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false, google_review_url = '', selected_template = '', photo_quality = '',event_date ='' } = req.body;
@@ -670,7 +674,9 @@ exports.checkEventReady = async (req, res) => {
         // };
         // http://157.173.221.163:8003
 
-        const url = `http://157.173.221.163:8888/check_status/${wedding_folder_id}`;
+        //http://103
+
+        const url = `http://103.67.239.58:8888/check_status/${wedding_folder_id}`;
 
 
         const response = await axios.get(url);
@@ -733,30 +739,30 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
 
         //hostinger server ; http://157.173.221.163:8003
 
-        const params = {
-            "input": {
-                "method": "POST",
-                "path": `/upload_urls`,
-                "body": {
-                    "image_urls": JSON.stringify(uploadedUrls.map(u => u.url)),
-                    "wedding_name": row.event_name,
-                    "wedding_folder_id": ai_folder_id,
-                    "bulk_mode": true,
-                    "async_mode": true,
-                }
+        // const params = {
+        //     "input": {
+        //         "method": "POST",
+        //         "path": `/upload_urls`,
+        //         "body": {
+        //             "image_urls": JSON.stringify(uploadedUrls.map(u => u.url)),
+        //             "wedding_name": row.event_name,
+        //             "wedding_folder_id": ai_folder_id,
+        //             "bulk_mode": true,
+        //             "async_mode": true,
+        //         }
 
-            }
-        }
+        //     }
+        // }
 
-        const url = `https://api.runpod.ai/v2/u9d9u5olceg3dd/runsync`;
+        // const url = `https://api.runpod.ai/v2/u9d9u5olceg3dd/runsync`;
+        const localurl = `http://103.67.239.58:8888/upload_urls`;
 
-        const headers = {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.RUNPOD_API_KEY}`
-        };
+        // const headers = {
+        //     'Content-Type': 'application/json',
+        //     'Authorization': `Bearer ${process.env.RUNPOD_API_KEY}`
+        // };
 
-
-        axios.post(url, params, { headers }, {
+        axios.post(localurl, formData, {...formData.getHeaders()}, {
             maxBodyLength: Infinity, // handle large payloads
         })
             .then(async (response) => {
@@ -839,7 +845,7 @@ exports.findPerson = async (req, res) => {
         formData.append('wedding_folder_id', wedding_folder_id);
 
 
-        const response = await axios.post(`http://157.173.221.163:8888/find_person`, formData, { ...formData.getHeaders(), maxBodyLength: Infinity });
+        const response = await axios.post(`http://103.67.239.58:8888/find_person`, formData, { ...formData.getHeaders(), maxBodyLength: Infinity });
        
         // Extract the actual response body
         const responseBody = response.data;
@@ -962,7 +968,7 @@ exports.reUploadFaceDescriptor = async (req, res) => {
         const response = {
             uploadedUrls: rows.map(row => ({
                 folder_id: row.folder_id,
-                url: row.url,
+                url: getFileUrl(row.url),
                 name: row.name
             })),
             uploaded_by: rows[0].uploaded_by,
@@ -982,3 +988,8 @@ exports.reUploadFaceDescriptor = async (req, res) => {
         res.status(500).json({ error: 'Internal server error', message: "Something went wrong" });
     }
 }
+
+ function getFileUrl(path) {
+    const normalizedPath = path.replace(/\\/g, '/');
+    return `${baseImgUrl}${normalizedPath}`;
+  }
