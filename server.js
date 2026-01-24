@@ -1,3 +1,33 @@
+const { createAdapter } = require('@socket.io/redis-adapter');
+const Redis = require('ioredis');
+
+
+const redisUrl = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+
+
+const pubClient = new Redis(redisUrl, {
+maxRetriesPerRequest: null,
+enableReadyCheck: false,
+});
+
+
+const subClient = pubClient.duplicate();
+
+
+// 🔴 REQUIRED HANDLERS
+pubClient.on('error', (err) => {
+console.error('Redis pub error:', err.message);
+});
+
+
+subClient.on('error', (err) => {
+console.error('Redis sub error:', err.message);
+});
+
+
+pubClient.on('connect', () => console.log('🟢 Redis pub connected'));
+subClient.on('connect', () => console.log('🟢 Redis sub connected'));
+
 require('dotenv').config();
 
 const express = require('express');
@@ -41,6 +71,8 @@ const io = new Server(server, {
     methods: ['GET', 'POST']
   }
 });
+
+io.adapter(createAdapter(pubClient, subClient));
 
 // Expose io to controllers
 app.locals.io = io;
