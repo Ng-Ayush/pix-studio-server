@@ -85,6 +85,12 @@ app.use(bodyParser.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // app.use(express.static('uploads'));
 app.use('/uploads', express.static('uploads'));
+app.use(
+  '/ai-uploads',
+  express.static(path.join(__dirname, 'ai-uploads'))
+);
+
+
 
 // --------------------------------------------------
 // Socket connection handling
