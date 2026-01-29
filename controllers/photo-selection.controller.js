@@ -1,3 +1,4 @@
+require('dotenv').config();
 const pool = require('../db_config/db.js');
 const admin = require('firebase-admin');
 const serviceAccount = require('../config/firebase-service-account.json');
@@ -13,9 +14,8 @@ const bucket = admin.storage().bucket();
 const multer = require('multer');
 
 const upload = multer();
-
-const baseImgUrl = 'http://localhost:3000';
-// const baseImgUrl = 'http://103.67.239.58:3000';
+const basePythonUrl = process.env.PYTHON_BASE_URL;
+const baseImgUrl = process.env.BASE_IMG_URL;
 
 
 exports.createEvent = async (req, res) => {
@@ -676,7 +676,7 @@ exports.checkEventReady = async (req, res) => {
 
         //http://103
 
-        const url = `http://103.67.239.58:8888/check_status/${wedding_folder_id}`;
+        const url = `${basePythonUrl}/check_status/${wedding_folder_id}`;
 
 
         const response = await axios.get(url);
@@ -755,7 +755,7 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
         // }
 
         // const url = `https://api.runpod.ai/v2/u9d9u5olceg3dd/runsync`;
-        const localurl = `http://103.67.239.58:8888/upload_urls`;
+        const localurl = `${basePythonUrl}/upload_urls`;
 
         // const headers = {
         //     'Content-Type': 'application/json',
@@ -845,7 +845,7 @@ exports.findPerson = async (req, res) => {
         formData.append('wedding_folder_id', wedding_folder_id);
 
 
-        const response = await axios.post(`http://103.67.239.58:8888/find_person`, formData, { ...formData.getHeaders(), maxBodyLength: Infinity });
+        const response = await axios.post(`${basePythonUrl}/find_person`, formData, { ...formData.getHeaders(), maxBodyLength: Infinity });
        
         // Extract the actual response body
         const responseBody = response.data;
