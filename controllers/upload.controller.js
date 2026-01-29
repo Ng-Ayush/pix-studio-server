@@ -3,7 +3,6 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const pool = require('../db_config/db.js');
-const { log } = require('console');
 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 const AI_UPLOAD_ROOT = path.join(__dirname, '..', 'ai-uploads'); // ✅ changed
@@ -98,20 +97,18 @@ const upload = multer({
 });
 
 exports.uploadFiles = (req, res) => {
-
-  console.log(req.body);
   uploadQueue.add(() => new Promise((resolve, reject) => {
     upload.array('files', 50)(req, res, async (err) => {
   
       // 🔴 FIX 1: multer error pe response bhi bhejo
       if (err) {
-        res.status(400).send({ error: err.message });
+        res.send({ error: err.message,status:400 });
         return reject(err);
       }
   
       // 🔴 FIX 2: no files case pe bhi response bhejo
       if (!req.files?.length) {
-        res.status(400).send({ error: 'No files uploaded' });
+        res.send({ error: 'No files uploaded', status: 400 });
         return reject(new Error('No files uploaded'));
       }
   
@@ -184,7 +181,7 @@ exports.uploadFiles = (req, res) => {
   
       } catch (e) {
         // 🔴 FIX 3: catch me bhi response
-        res.status(500).send({ error: e.message });
+        res.send({ error: e.message, status: 500 });
         reject(e);
       }
     });
@@ -202,3 +199,107 @@ exports.getFiles = async (req, res) => {
         res.status(500).json({ message: 'Database error' });
     }
 };
+
+// exports.migrate = async (req, res) => {
+
+//     try {
+//         const [rows] = await pool.execute(`
+//       SELECT
+//         p.id AS photo_id,
+//         p.photo_url,
+//         p.photo_name,
+//         p.folder_id,
+//         e.id AS event_id,
+//         e.event_name,
+//         e.created_by AS user_id,
+//         u.studio_name,
+//         c.id AS customer_id,
+//         c.name AS customer_name,
+//         f.folder_name
+//       FROM photos p
+//       JOIN folders f ON f.id = p.folder_id
+//       JOIN events e ON e.id = f.event_id
+//       JOIN users u ON u.id = e.created_by
+//       JOIN customers c ON c.id = e.customer_id
+//       WHERE p.photo_url LIKE '%firebasestorage.googleapis.com%'
+//       AND e.is_ai_upload = 0
+//     `);
+
+//         let ok = 0, fail = 0;
+
+//         console.log("Starting migration...",rows);
+        
+
+//         for (const r of rows) {
+//             try {
+//                 const localPath = path.join(
+//                     UPLOAD_ROOT,
+//                     `user_${safe(r.user_id)}`,
+//                     `studio_${safe(r.studio_name)}`,
+//                     `customer_${safe(r.customer_name)}_${safe(r.customer_id)}`,
+//                     `event_${safe(r.event_name)}_${safe(r.event_id)}`,
+//                     `${safe(r.folder_name)}_${safe(r.folder_id)}`
+//                 );
+
+//                 await fs.promises.mkdir(localPath, { recursive: true });
+
+//                 const filename = `${Date.now()}_${safe(r.photo_name)}`;
+//                 const filepath = path.join(localPath, filename);
+
+//                 await downloadImage(r.photo_url, filepath);
+
+//                 await new Promise((res, rej) => {
+//                     writer.on("finish", res);
+//                     writer.on("error", rej);
+//                 });
+
+//                 const newUrl = `/uploads/user_${safe(r.user_id)}/studio_${safe(r.studio_name)}/customer_${safe(r.customer_name)}_${safe(r.customer_id)}/event_${safe(r.event_name)}_${safe(r.event_id)}/${safe(r.folder_name)}_${safe(r.folder_id)}/${filename}`;
+
+//                 await pool.query(
+//                     `UPDATE photos SET photo_url = ? WHERE id = ?`,
+//                     [newUrl, r.photo_id]
+//                 );
+
+//                 ok++;
+//             } catch (err) {
+//                 console.error("Fail:", r.photo_url);
+//                 fail++;
+//             }
+//         }
+
+//         res.json({
+//             message: "🔥 GLOBAL FIREBASE MIGRATION COMPLETE",
+//             total: rows.length,
+//             ok,
+//             fail
+//         });
+
+//     } catch (err) {
+//         console.error(err);
+//         res.status(500).json({ error: err.message });
+//     } finally {
+//         await pool.end();
+//     }
+// };
+
+// async function downloadImage(url, filePath) {
+//     const stream = got.stream(url, {
+//         followRedirect: true,
+//         timeout: { request: 60000 },
+//         headers: {
+//             "user-agent":
+//                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36",
+//             accept: "image/*,*/*;q=0.8",
+//             referer: "https://firebase.google.com"
+//         }
+//     });
+
+
+//     await new Promise((resolve, reject) => {
+//         const file = fs.createWriteStream(filePath);
+//         stream.pipe(file);
+//         stream.on("error", reject);
+//         file.on("finish", resolve);
+//         file.on("error", reject);
+//     });
+// }
