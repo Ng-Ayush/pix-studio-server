@@ -98,7 +98,7 @@ const upload = multer({
 
 exports.uploadFiles = (req, res) => {
   uploadQueue.add(() => new Promise((resolve, reject) => {
-    upload.array('files', 10)(req, res, async (err) => {
+    upload.array('files', 6)(req, res, async (err) => {
   
       if (err) {
         res.send({ error: err.message,status:400 });
