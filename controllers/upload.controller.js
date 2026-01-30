@@ -97,16 +97,14 @@ const upload = multer({
 });
 
 exports.uploadFiles = (req, res) => {
-  uploadQueue.add(() => new Promise((resolve, reject) => {
+//   uploadQueue.add(() => new Promise((resolve, reject) => {
     upload.array('files', 50)(req, res, async (err) => {
   
-      // 🔴 FIX 1: multer error pe response bhi bhejo
       if (err) {
         res.send({ error: err.message,status:400 });
         return reject(err);
       }
   
-      // 🔴 FIX 2: no files case pe bhi response bhejo
       if (!req.files?.length) {
         res.send({ error: 'No files uploaded', status: 400 });
         return reject(new Error('No files uploaded'));
@@ -170,7 +168,6 @@ exports.uploadFiles = (req, res) => {
           );
         }
   
-        // ✅ success response
         res.send({
           status: 200,
           message: 'Batch uploaded',
@@ -180,12 +177,11 @@ exports.uploadFiles = (req, res) => {
         resolve();
   
       } catch (e) {
-        // 🔴 FIX 3: catch me bhi response
         res.send({ error: e.message, status: 500 });
         reject(e);
       }
     });
-  }));
+//   }));
   
 };
 
