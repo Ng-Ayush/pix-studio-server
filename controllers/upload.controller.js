@@ -97,7 +97,7 @@ const upload = multer({
 });
 
 exports.uploadFiles = (req, res) => {
-//   uploadQueue.add(() => new Promise((resolve, reject) => {
+  uploadQueue.add(() => new Promise((resolve, reject) => {
     upload.array('files', 50)(req, res, async (err) => {
   
       if (err) {
@@ -181,7 +181,7 @@ exports.uploadFiles = (req, res) => {
         reject(e);
       }
     });
-//   }));
+  }));
   
 };
 
