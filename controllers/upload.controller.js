@@ -277,6 +277,7 @@ function updateFaceDescriptorStatus(event_id) {
 
 exports.migrate = async (req, res) => {
 
+  const {is_ai_upload } = req.body;
     try {
         const [rows] = await pool.execute(`
       SELECT
@@ -297,8 +298,9 @@ exports.migrate = async (req, res) => {
       JOIN users u ON u.id = e.created_by
       JOIN customers c ON c.id = e.customer_id
       WHERE p.photo_url LIKE '%firebasestorage.googleapis.com%'
-      AND e.is_ai_upload = 1
-    `);
+      AND e.is_ai_upload = ?
+    `, [is_ai_upload ? 1 : 0]
+    );
 
         let ok = 0, fail = 0;
 
@@ -308,7 +310,7 @@ exports.migrate = async (req, res) => {
         for (const r of rows) {
             try {
                 const localPath = path.join(
-                    UPLOAD_ROOT,
+                    is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT,
                     `user_${safe(r.user_id)}`,
                     `studio_${safe(r.studio_name)}`,
                     `customer_${safe(r.customer_name)}_${safe(r.customer_id)}`,
@@ -325,7 +327,7 @@ exports.migrate = async (req, res) => {
 
                 await downloadImage(r.photo_url, filepath);
 
-                const newUrl = `/uploads/user_${safe(r.user_id)}/studio_${safe(r.studio_name)}/customer_${safe(r.customer_name)}_${safe(r.customer_id)}/event_${safe(r.event_name)}_${safe(r.event_id)}/${safe(r.folder_name)}_${safe(r.folder_id)}/${filename}`;
+                const newUrl = `/${is_ai_upload ? 'ai-uploads' : 'uploads'}/user_${safe(r.user_id)}/studio_${safe(r.studio_name)}/customer_${safe(r.customer_name)}_${safe(r.customer_id)}/event_${safe(r.event_name)}_${safe(r.event_id)}/${safe(r.folder_name)}_${safe(r.folder_id)}/${filename}`;
 
                 await pool.query(
                     `UPDATE photos SET photo_url = ? WHERE id = ?`,
@@ -349,8 +351,6 @@ exports.migrate = async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: err.message });
-    } finally {
-        await pool.end();
     }
 };
 
