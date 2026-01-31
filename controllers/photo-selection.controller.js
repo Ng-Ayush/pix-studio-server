@@ -16,6 +16,8 @@ const multer = require('multer');
 const upload = multer();
 const basePythonUrl = process.env.PYTHON_BASE_URL;
 const baseImgUrl = process.env.BASE_IMG_URL;
+const fs = require('fs/promises');
+
 
 
 exports.createEvent = async (req, res) => {
@@ -369,39 +371,80 @@ function extractFirebasePath(url) {
     }
 }
 
+
 exports.deletePhotos = async (req, res) => {
-    const photos = req.body.photos;
-    const { folder_id } = req.body;
+
+    const { photos, folder_id } = req.body;
+
     if (!Array.isArray(photos) || photos.length === 0) {
         return res.status(400).json({ message: 'Invalid photo data' });
     }
+    const ids = photos.map(p => Number(p.id)).filter(Boolean);
 
-    const fileDeletePromises = [];
-    const photoIds = [];
-
-    console.log(photos.length);
-    
-
-    for (const photo of photos) {
-        const { id } = photo;
-        photoIds.push(id);
+    if (!ids.length) {
+        return res.status(400).json({ message: 'Invalid ids' });
     }
+
+    const placeholders = ids.map(() => '?').join(',');
 
     try {
-        // await Promise.all(fileDeletePromises);
 
-        if (photoIds.length > 0) {
-            const placeholders = photoIds.map(() => '?').join(',');
-            const deleteQuery = `DELETE FROM photos WHERE folder_id = ${folder_id} AND id IN (${placeholders})`;
-            await pool.execute(deleteQuery, photoIds);
+        const [rows] = await pool.execute(
+            `SELECT id, photo_url
+             FROM photos
+             WHERE folder_id = ?
+             AND id IN (${placeholders})`,
+            [folder_id, ...ids]
+        );
+
+        // nothing found → just return success
+        if (!rows.length) {
+            return res.json({ message: 'Nothing to delete', status: 200 });
         }
 
-        return res.send({ message: 'Photos deleted successfully', status: 200 });
+        const projectRoot = process.cwd();
+
+        const deleteJobs = rows.map(r => {
+
+            if (!r.photo_url) return Promise.resolve();
+
+            const relativePath = r.photo_url.startsWith('/')
+                ? r.photo_url.slice(1)
+                : r.photo_url;
+
+            const fullPath = path.resolve(projectRoot, relativePath);
+
+            // 🔒 path traversal protection
+            if (!fullPath.startsWith(projectRoot)) {
+                return Promise.resolve();
+            }
+
+            return fs.unlink(fullPath).catch(() => null); // file missing → ignore
+        });
+
+        await Promise.allSettled(deleteJobs);
+
+        await pool.execute(
+            `DELETE FROM photos
+             WHERE folder_id = ?
+             AND id IN (${placeholders})`,
+            [folder_id, ...ids]
+        );
+
+        return res.json({
+            message: 'Images deleted successfully',
+            status: 200
+        });
+
     } catch (err) {
-        console.error('Bulk deletion failed:', err);
-        return res.send({ message: 'Server error during deletion', status: 500 });
+        console.error('Delete failed:', err);
+        return res.status(500).json({ message: 'Delete failed' });
     }
 };
+
+
+
+
 
 exports.verifyUniqueCode = async (req, res) => {
     try {
