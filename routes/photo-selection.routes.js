@@ -16,7 +16,7 @@ router.get("/getFolderByEventId/:event_id",authMiddleware, photoSelectionControl
 router.get("/getAiGuestByEventId/:event_id",authMiddleware, photoSelectionController.getAiGuestByEventId);
 router.post("/addAiGuest",photoSelectionController.addAiGuest);
 router.get("/getUploadedPhotosByFolderId/:folder_id", photoSelectionController.getUploadedPhotosByFolderId);
-router.post("/createNewFolder",authMiddleware, photoSelectionController.createNewFolder);
+router.post("/createNewFolder", photoSelectionController.createNewFolder);
 router.put("/updateFolder/:id",authMiddleware, photoSelectionController.updateFolder);
 router.delete("/deleteFolder/:id",authMiddleware, photoSelectionController.deleteFolder);
 router.delete("/deleteEvent/:id",authMiddleware, photoSelectionController.deleteEvent);

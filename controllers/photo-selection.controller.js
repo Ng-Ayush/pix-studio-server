@@ -179,7 +179,7 @@ exports.createNewFolder = async (req, res) => {
     try {
         const { event_id, folder_name } = req.body;
         const [result] = await pool.execute(`INSERT INTO folders (folder_name, event_id) VALUES (?,?)`, [folder_name, event_id]);
-        res.send({ message: "Folder Fetched", status: 200 })
+        res.send({ message: "Folder Created", status: 200, id: result.insertId })
 
     } catch (error) {
         res.send({ message: "Folder Fetched", data: result, status: 200 })
@@ -269,6 +269,7 @@ exports.getUploadedPhotosByFolderId = async (req, res) => {
         const query = `SELECT 
     c.name,
     c.customer_unique_id,
+    c.id AS customer_id,
     e.event_name,
     e.id AS event_id,
     e.is_event_submitted,
@@ -299,6 +300,7 @@ WHERE f.id = ?;`
         const response = {
             customer_name: result[0]?.name,
             customer_unique_id: result[0]?.customer_unique_id,
+            customer_id: result[0]?.customer_id,
             event_name: result[0]?.event_name,
             event_id: result[0]?.event_id,
             folder_name: result[0]?.folder_name,
