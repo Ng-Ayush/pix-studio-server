@@ -17,66 +17,64 @@ const basePythonUrl = process.env.PYTHON_BASE_URL;
 // ========================
 // HELPERS
 // ========================
-const safe = (v) => String(v).replace(/[^a-zA-Z0-9_-]/g, '');
+const safe = (v) => String(v || '').replace(/[^a-zA-Z0-9_-]/g, '');
+
+const getFileUrl = (relativePath) =>
+  `${process.env.BASE_IMG_URL}${relativePath}`;
 
 // ========================
-// MULTER STORAGE
+// PRE-MIDDLEWARE (RUNS ONCE)
+// ========================
+const ensureUploadDir = async (req, res, next) => {
+  try {
+    const {
+      user_id,
+      studio_name,
+      customer_name,
+      customer_id,
+      event_name,
+      event_id,
+      folder_name,
+      folder_id,
+      is_ai_upload
+    } = req.body;
+
+    if (!user_id || !studio_name || !event_id) {
+      return res.status(400).send({
+        status: 400,
+        error: 'Missing required fields'
+      });
+    }
+
+    const root = is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
+
+    const uploadPath = path.join(
+      root,
+      `user_${safe(user_id)}`,
+      `studio_${safe(studio_name)}`,
+      `customer_${safe(customer_name)}_${safe(customer_id)}`,
+      `event_${safe(event_name)}_${safe(event_id)}`,
+      `${safe(folder_name)}_${safe(folder_id)}`
+    );
+
+    await fs.promises.mkdir(uploadPath, { recursive: true });
+
+    // store once
+    req.uploadPath = uploadPath;
+
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ========================
+// MULTER STORAGE (NO FS WORK)
 // ========================
 const storage = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    try {
-      const {
-        user_id,
-        studio_name,
-        customer_name,
-        customer_id,
-        event_name,
-        event_id,
-        folder_name,
-        folder_id,
-        is_ai_upload
-      } = req.body;
-
-      if (
-        !user_id ||
-        !studio_name ||
-        !event_id
-      ) {
-        return cb(new Error('Missing required fields'));
-      }
-
-      // const basePath = path.join(
-      //   UPLOAD_ROOT,
-      //   `user_${safe(user_id)}`,
-      //   `studio_${safe(studio_name)}`,
-      //   `customer_${safe(customer_name)}_${safe(customer_id)}`,
-      //   `event_${safe(event_name)}_${safe(event_id)}`
-      // );
-
-      const root = !!req.body.is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
-
-      const uploadPath = path.join(
-        root,
-        `user_${safe(user_id)}`,
-        `studio_${safe(studio_name)}`,
-        `customer_${safe(customer_name)}_${safe(customer_id)}`,
-        `event_${safe(event_name)}_${safe(event_id)}`,
-        `${safe(folder_name)}_${safe(folder_id)}`
-      );
-      ;
-
-      console.timeLog("uploadTime","time se pehle");
-      
-      await fs.promises.mkdir(uploadPath, { recursive: true });
-      cb(null, uploadPath);
-      console.timeLog("uploadTime","time ke baad");
-
-    } catch (e) {
-      cb(e);
-    }
+  destination: (req, file, cb) => {
+    cb(null, req.uploadPath);
   },
-
-
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
     const name = path.basename(file.originalname, ext);
@@ -99,84 +97,55 @@ const upload = multer({
   }
 });
 
-exports.uploadFiles = (req, res) => {
+// ========================
+// CONTROLLER
+// ========================
+exports.uploadFiles = [
+  ensureUploadDir,
+  upload.array('files', 10),
+  async (req, res) => {
 
-  console.time("uploadTime");
-
-  upload.array('files', 10)(req, res, async (err) => {
-
-    if (err) {
-      return res.send({ error: err.message, status: 400 });
-    }
-
-    if (!req.files?.length) {
-      return res.send({ error: 'No files uploaded', status: 400 });
-    }
+    const label = `upload-${Date.now()}`;
+    console.time(label);
 
     try {
+      if (!req.files?.length) {
+        return res.send({ error: 'No files uploaded', status: 400 });
+      }
+
       const {
         user_id,
         folder_id,
         event_id,
         is_ai_upload = false,
         photo_quality = 'basic',
-        is_from_camera = false,
-        studio_name,
-        customer_name,
-        customer_id,
-        event_name,
-        folder_name,
+        is_from_camera = false
       } = req.body;
 
-      const root = is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
       const publicRoot = is_ai_upload ? '/ai-uploads' : '/uploads';
 
-      // const uploadPath = path.join(
-      //   root,
-      //   `user_${safe(user_id)}`,
-      //   `studio_${safe(studio_name)}`,
-      //   `customer_${safe(customer_name)}_${safe(customer_id)}`,
-      //   `event_${safe(event_name)}_${safe(event_id)}`,
-      //   `${safe(folder_name)}_${safe(folder_id)}`
-      // );
-
-      // create folder
-      // await fs.promises.mkdir(uploadPath, { recursive: true });
-
-      console.timeLog("uploadTime");
-
-      // // write files to disk
-      // await Promise.all(
-      //   req.files.map(f =>
-      //     fs.promises.writeFile(
-      //       path.join(uploadPath, f.originalname),
-      //       f.buffer
-      //     )
-      //   )
-      // );
-
-      // build DB values (FIXED)
-      const values = req.files.map(f => {
-        return [
-          f.path
-            .replace(process.cwd(), '')
-            .replace(/\\/g, '/')
-            .replace(
-              publicRoot === '/ai-uploads' ? '/ai-uploads' : '/uploads',
-              publicRoot
-            ),
-          f.originalname,
-          folder_id,
-          user_id,
-          null,
-          false
-        ];
-      });
+      // ========================
+      // BUILD DB VALUES
+      // ========================
+      const values = req.files.map((f) => [
+        f.path
+          .replace(process.cwd(), '')
+          .replace(/\\/g, '/')
+          .replace(
+            publicRoot === '/ai-uploads' ? '/ai-uploads' : '/uploads',
+            publicRoot
+          ),
+        f.originalname,
+        folder_id,
+        user_id,
+        null,
+        false
+      ]);
 
       const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?)').join(',');
       console.timeLog("uploadTime");
       await pool.execute(
-        `INSERT INTO photos 
+        `INSERT INTO photos
          (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready)
          VALUES ${placeholders}`,
         values.flat()
@@ -203,6 +172,7 @@ exports.uploadFiles = (req, res) => {
           [inc, user_id]
         );
       }
+      console.timeEnd(label);
 
       res.status(200).send({
         status: 200,
@@ -219,12 +189,32 @@ exports.uploadFiles = (req, res) => {
         );
       }
 
-    } catch (e) {
-      res.status(500).send({ error: e.message, status: 500 });
+    } catch (err) {
+      console.timeEnd(label);
+      res.status(500).send({
+        status: 500,
+        error: err.message
+      });
     }
-  });
-};
+  }
+];
 
+async function triggerExternalExtraction(folderId, eventId, photos, token) {
+  try {
+    const form = new FormData();
+    form.append('folder_id', folderId);
+    form.append('event_id', eventId);
+    form.append('photos', JSON.stringify(photos));
+
+    await axios.post(
+      `${process.env.PYTHON_BASE_URL}/extract`,
+      form,
+      { headers: form.getHeaders() }
+    );
+  } catch (err) {
+    console.error('AI extraction failed:', err.message);
+  }
+}
 
 exports.getFiles = async (req, res) => {
   try {
