@@ -143,15 +143,12 @@ exports.uploadFiles = [
       ]);
 
       const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?)').join(',');
-      console.timeLog("uploadTime");
       await pool.execute(
         `INSERT INTO photos
          (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready)
          VALUES ${placeholders}`,
         values.flat()
       );
-
-       console.timeLog("uploadTime");
 
       if (is_ai_upload) {
         await pool.execute(
@@ -198,23 +195,6 @@ exports.uploadFiles = [
     }
   }
 ];
-
-async function triggerExternalExtraction(folderId, eventId, photos, token) {
-  try {
-    const form = new FormData();
-    form.append('folder_id', folderId);
-    form.append('event_id', eventId);
-    form.append('photos', JSON.stringify(photos));
-
-    await axios.post(
-      `${process.env.PYTHON_BASE_URL}/extract`,
-      form,
-      { headers: form.getHeaders() }
-    );
-  } catch (err) {
-    console.error('AI extraction failed:', err.message);
-  }
-}
 
 exports.getFiles = async (req, res) => {
   try {
@@ -366,7 +346,7 @@ async function downloadImage(url, filePath) {
     fs.writeFileSync(filePath, buffer);
 }
 
-function getFileUrl(path) {
-  const normalizedPath = path.replace(/\\/g, '/');
-  return `${baseImgUrl}${normalizedPath}`;
-}
+// function getFileUrl(path) {
+//   const normalizedPath = path.replace(/\\/g, '/');
+//   return `${baseImgUrl}${normalizedPath}`;
+// }
