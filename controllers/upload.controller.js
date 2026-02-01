@@ -1,10 +1,13 @@
-const uploadQueue = require('../utils/uploadQueue.js');
-const multer = require('multer');
+const Busboy = require('busboy');
 const path = require('path');
 const fs = require('fs');
 const pool = require('../db_config/db.js');
 const axios = require('axios');
 const FormData = require('form-data');
+
+/* ========================
+   CONSTANTS
+======================== */
 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 const AI_UPLOAD_ROOT = path.join(__dirname, '..', 'ai-uploads'); // ✅ changed
@@ -19,146 +22,129 @@ const basePythonUrl = process.env.PYTHON_BASE_URL;
 // ========================
 const safe = (v) => String(v || '').replace(/[^a-zA-Z0-9_-]/g, '');
 
-const getFileUrl = (relativePath) =>
-  `${process.env.BASE_IMG_URL}${relativePath}`;
+function ensureUploadPath(fields) {
+  const root = fields.is_ai_upload == 1 ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
+
+  const uploadPath = path.join(
+    root,
+    `user_${safe(fields.user_id)}`,
+    `studio_${safe(fields.studio_name)}`,
+    `customer_${safe(fields.customer_name)}_${safe(fields.customer_id)}`,
+    `event_${safe(fields.event_name)}_${safe(fields.event_id)}`,
+    `${safe(fields.folder_name)}_${safe(fields.folder_id)}`
+  );
+
+  fs.mkdirSync(uploadPath, { recursive: true });
+  return uploadPath;
+}
 
 // ========================
-// PRE-MIDDLEWARE (RUNS ONCE)
+//   UPLOAD CONTROLLER
 // ========================
-const ensureUploadDirMiddleware = async (req, res, next) => {
-  try {
-    const {
-      user_id,
-      studio_name,
-      customer_name,
-      customer_id,
-      event_name,
-      event_id,
-      folder_name,
-      folder_id,
-      is_ai_upload
-    } = req.body;
 
-    if (!user_id || !studio_name || !event_id) {
-      return res.status(400).json({ error: 'Missing required fields' });
+exports.uploadFiles = (req, res) => {
+  if (!req.headers['content-type']?.includes('multipart/form-data')) {
+    return res.status(400).json({ error: 'Invalid content-type' });
+  }
+
+  const busboy = Busboy({
+    headers: req.headers,
+    limits: {
+      files: 10,
+      fileSize: 10 * 1024 * 1024 // 10MB per file
+    }
+  });
+
+  const fields = {};
+  const files = [];
+  const writePromises = [];
+  let uploadPath = null;
+
+  /* -------- fields -------- */
+  busboy.on('field', (name, value) => {
+    fields[name] = value;
+  });
+
+  /* -------- files -------- */
+  busboy.on('file', (name, file, info) => {
+    const { filename, mimeType } = info;
+
+    if (!/^image\/jpe?g$/.test(mimeType)) {
+      file.resume();
+      return;
     }
 
-    const root = is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
+    if (!uploadPath && fields.user_id) {
+      uploadPath = ensureUploadPath(fields);
+    }
 
-    const uploadPath = path.join(
-      root,
-      `user_${safe(user_id)}`,
-      `studio_${safe(studio_name)}`,
-      `customer_${safe(customer_name)}_${safe(customer_id)}`,
-      `event_${safe(event_name)}_${safe(event_id)}`,
-      `${safe(folder_name)}_${safe(folder_id)}`
-    );
+    if (!uploadPath) {
+      file.resume();
+      return;
+    }
 
-    await fs.promises.mkdir(uploadPath, { recursive: true });
+    const ext = path.extname(filename);
+    const base = path.basename(filename, ext);
+    const finalName = `${Date.now()}_${safe(base)}${ext}`;
+    const finalPath = path.join(uploadPath, finalName);
 
-    req.uploadPath = uploadPath;
-    next();
-  } catch (err) {
-    next(err);
-  }
-};
+    const writeStream = fs.createWriteStream(finalPath);
 
+    const writePromise = new Promise((resolve, reject) => {
+      writeStream.on('finish', resolve);
+      writeStream.on('error', reject);
+    });
 
+    file.pipe(writeStream);
+    writePromises.push(writePromise);
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+    files.push({
+      path: finalPath.replace(process.cwd(), '').replace(/\\/g, '/'),
+      originalname: filename
+    });
+  });
+
+  /* -------- finish -------- */
+  busboy.on('finish', async () => {
     try {
-      const {
-        user_id,
-        studio_name,
-        customer_name,
-        customer_id,
-        event_name,
-        event_id,
-        folder_name,
-        folder_id,
-        is_ai_upload
-      } = req.body;
-
-      if (!user_id || !studio_name || !event_id) {
-        return cb(new Error('Missing required fields'));
+      if (!files.length) {
+        return res.status(400).json({ error: 'No files uploaded' });
       }
 
-      const root =
-        is_ai_upload === '1' || is_ai_upload === 1 || is_ai_upload === true
-          ? AI_UPLOAD_ROOT
-          : UPLOAD_ROOT;
+      await Promise.all(writePromises);
 
-      const uploadPath = path.join(
-        root,
-        `user_${safe(user_id)}`,
-        `studio_${safe(studio_name)}`,
-        `customer_${safe(customer_name)}_${safe(customer_id)}`,
-        `event_${safe(event_name)}_${safe(event_id)}`,
-        `${safe(folder_name)}_${safe(folder_id)}`
+      const values = files.map(f => [
+        f.path,
+        f.originalname,
+        fields.folder_id,
+        fields.user_id,
+        null,
+        false
+      ]);
+
+      const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?)').join(',');
+
+      await pool.execute(
+        `INSERT INTO photos
+         (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready)
+         VALUES ${placeholders}`,
+        values.flat()
       );
 
-      fs.mkdirSync(uploadPath, { recursive: true });
+      res.json({
+        status: 200,
+        message: 'Upload successful',
+        files: files.length
+      });
 
-      cb(null, uploadPath);
     } catch (err) {
-      cb(err);
+      console.error('Upload failed:', err);
+      res.status(500).json({ error: 'Upload failed' });
     }
-  },
+  });
 
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
-    cb(null, `${Date.now()}_${safe(name)}${ext}`);
-  }
-});
-
-
-// ========================
-// MULTER CONFIG
-// ========================
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024, files: 10 },
-  fileFilter: (req, file, cb) => {
-    if (/^image\/jpe?g$/.test(file.mimetype)) cb(null, true);
-    else cb(new Error('Only JPG/JPEG files allowed'));
-  }
-});
-// ========================
-// CONTROLLER
-// ========================
-exports.uploadFiles = [
-  ensureUploadDirMiddleware,
-  upload.array('files', 10),
-  async (req, res) => {
-    if (!req.files?.length) {
-      return res.status(400).json({ error: 'No files uploaded' });
-    }
-
-    const { user_id, folder_id, is_ai_upload = false } = req.body;
-
-    const values = req.files.map(f => [
-      f.path.replace(process.cwd(), '').replace(/\\/g, '/'),
-      f.originalname,
-      folder_id,
-      user_id,
-      null,
-      false
-    ]);
-
-    const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?)').join(',');
-
-    await pool.execute(
-      `INSERT INTO photos
-      (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready)
-      VALUES ${placeholders}`,
-      values.flat()
-    );
-
-    res.json({ status: 200, message: 'Batch uploaded successfully' });
-  }
-];
+  req.pipe(busboy);
+};
 
 
 exports.getFiles = async (req, res) => {
