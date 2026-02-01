@@ -5,7 +5,9 @@ const fs = require('fs');
 const pool = require('../db_config/db.js');
 const axios = require('axios');
 const FormData = require('form-data');
-const parseForm = multer().none();
+const parseForm = multer().fields([
+  { name: 'files', maxCount: 10 }
+]);
 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 const AI_UPLOAD_ROOT = path.join(__dirname, '..', 'ai-uploads'); // ✅ changed
