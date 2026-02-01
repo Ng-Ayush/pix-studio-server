@@ -65,8 +65,11 @@ const storage = multer.diskStorage({
       );
       ;
 
+      console.timeLog("uploadTime","time se pehle");
+      
       await fs.promises.mkdir(uploadPath, { recursive: true });
       cb(null, uploadPath);
+      console.timeLog("uploadTime","time ke baad");
 
     } catch (e) {
       cb(e);
