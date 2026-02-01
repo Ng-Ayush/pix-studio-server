@@ -103,20 +103,19 @@ const upload = multer({
 // ========================
 // CONTROLLER
 // ========================
-exports.uploadFiles = [
-  parseForm,
-  ensureUploadDir,
-  upload.array('files', 10),
-  async (req, res) => {
+exports.uploadFiles = (req, res) => {
+  console.time("uploadTime");
 
-    const label = `upload-${Date.now()}`;
-    console.time(label);
+  upload.array('files', 10)(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+
+    if (!req.files?.length) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
 
     try {
-      if (!req.files?.length) {
-        return res.send({ error: 'No files uploaded', status: 400 });
-      }
-
       const {
         user_id,
         folder_id,
@@ -128,10 +127,7 @@ exports.uploadFiles = [
 
       const publicRoot = is_ai_upload ? '/ai-uploads' : '/uploads';
 
-      // ========================
-      // BUILD DB VALUES
-      // ========================
-      const values = req.files.map((f) => [
+      const values = req.files.map(f => [
         f.path
           .replace(process.cwd(), '')
           .replace(/\\/g, '/')
@@ -154,31 +150,9 @@ exports.uploadFiles = [
         values.flat()
       );
 
-      if (is_ai_upload) {
-        await pool.execute(
-          'UPDATE folders SET isFaceDescriptorReady = 0 WHERE id = ?',
-          [folder_id]
-        );
-        await pool.execute(
-          'UPDATE events SET isFaceDescriptorReady = 0 WHERE id = ?',
-          [event_id]
-        );
-
-        let inc = req.files.length;
-        if (photo_quality === 'high') inc *= 10;
-        else if (photo_quality === 'standard') inc *= 3;
-
-        await pool.execute(
-          'UPDATE users SET used_photo_count = used_photo_count + ? WHERE id = ?',
-          [inc, user_id]
-        );
-      }
-      console.timeEnd(label);
-
-      res.status(200).send({
+      res.status(200).json({
         status: 200,
-        message: 'Batch uploaded',
-        isFaceDescriptorReady: false
+        message: 'Batch uploaded'
       });
 
       if (is_from_camera) {
@@ -190,15 +164,11 @@ exports.uploadFiles = [
         );
       }
 
-    } catch (err) {
-      console.timeEnd(label);
-      res.status(500).send({
-        status: 500,
-        error: err.message
-      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
     }
-  }
-];
+  });
+};
 
 exports.getFiles = async (req, res) => {
   try {
