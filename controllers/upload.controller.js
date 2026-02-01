@@ -22,70 +22,70 @@ const safe = (v) => String(v).replace(/[^a-zA-Z0-9_-]/g, '');
 // ========================
 // MULTER STORAGE
 // ========================
-// const storage = multer.diskStorage({
-//   destination: async (req, file, cb) => {
-//     try {
-//       const {
-//         user_id,
-//         studio_name,
-//         customer_name,
-//         customer_id,
-//         event_name,
-//         event_id,
-//         folder_name,
-//         folder_id,
-//         is_ai_upload
-//       } = req.body;
+const storage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    try {
+      const {
+        user_id,
+        studio_name,
+        customer_name,
+        customer_id,
+        event_name,
+        event_id,
+        folder_name,
+        folder_id,
+        is_ai_upload
+      } = req.body;
 
-//       if (
-//         !user_id ||
-//         !studio_name ||
-//         !event_id
-//       ) {
-//         return cb(new Error('Missing required fields'));
-//       }
+      if (
+        !user_id ||
+        !studio_name ||
+        !event_id
+      ) {
+        return cb(new Error('Missing required fields'));
+      }
 
-//       const basePath = path.join(
-//         UPLOAD_ROOT,
-//         `user_${safe(user_id)}`,
-//         `studio_${safe(studio_name)}`,
-//         `customer_${safe(customer_name)}_${safe(customer_id)}`,
-//         `event_${safe(event_name)}_${safe(event_id)}`
-//       );
+      // const basePath = path.join(
+      //   UPLOAD_ROOT,
+      //   `user_${safe(user_id)}`,
+      //   `studio_${safe(studio_name)}`,
+      //   `customer_${safe(customer_name)}_${safe(customer_id)}`,
+      //   `event_${safe(event_name)}_${safe(event_id)}`
+      // );
 
-//       const root = !!req.body.is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
+      const root = !!req.body.is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
 
-//       const uploadPath = path.join(
-//         root,
-//         `user_${safe(user_id)}`,
-//         `studio_${safe(studio_name)}`,
-//         `customer_${safe(customer_name)}_${safe(customer_id)}`,
-//         `event_${safe(event_name)}_${safe(event_id)}`,
-//         `${safe(folder_name)}_${safe(folder_id)}`
-//       );
-//       ;
+      const uploadPath = path.join(
+        root,
+        `user_${safe(user_id)}`,
+        `studio_${safe(studio_name)}`,
+        `customer_${safe(customer_name)}_${safe(customer_id)}`,
+        `event_${safe(event_name)}_${safe(event_id)}`,
+        `${safe(folder_name)}_${safe(folder_id)}`
+      );
+      ;
 
-//       await fs.promises.mkdir(uploadPath, { recursive: true });
-//       cb(null, uploadPath);
+      await fs.promises.mkdir(uploadPath, { recursive: true });
+      cb(null, uploadPath);
 
-//     } catch (e) {
-//       cb(e);
-//     }
-//   },
+    } catch (e) {
+      cb(e);
+    }
+  },
 
 
-//   filename: (req, file, cb) => {
-//     const ext = path.extname(file.originalname);
-//     const name = path.basename(file.originalname, ext);
-//     cb(null, `${safe(name)}${ext}`);
-//   }
-// });
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const name = path.basename(file.originalname, ext);
+    cb(null, `${safe(name)}${ext}`);
+  }
+});
 
 // ========================
 // MULTER CONFIG
 // ========================
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage,
   limits: { fileSize: 10 * 1024 * 1024, files: 10 }, // 10MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/jpg') {
@@ -128,38 +128,40 @@ exports.uploadFiles = (req, res) => {
       const root = is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
       const publicRoot = is_ai_upload ? '/ai-uploads' : '/uploads';
 
-      const uploadPath = path.join(
-        root,
-        `user_${safe(user_id)}`,
-        `studio_${safe(studio_name)}`,
-        `customer_${safe(customer_name)}_${safe(customer_id)}`,
-        `event_${safe(event_name)}_${safe(event_id)}`,
-        `${safe(folder_name)}_${safe(folder_id)}`
-      );
+      // const uploadPath = path.join(
+      //   root,
+      //   `user_${safe(user_id)}`,
+      //   `studio_${safe(studio_name)}`,
+      //   `customer_${safe(customer_name)}_${safe(customer_id)}`,
+      //   `event_${safe(event_name)}_${safe(event_id)}`,
+      //   `${safe(folder_name)}_${safe(folder_id)}`
+      // );
 
       // create folder
-      await fs.promises.mkdir(uploadPath, { recursive: true });
+      // await fs.promises.mkdir(uploadPath, { recursive: true });
 
       console.timeLog("uploadTime");
 
-      // write files to disk
-      await Promise.all(
-        req.files.map(f =>
-          fs.promises.writeFile(
-            path.join(uploadPath, f.originalname),
-            f.buffer
-          )
-        )
-      );
+      // // write files to disk
+      // await Promise.all(
+      //   req.files.map(f =>
+      //     fs.promises.writeFile(
+      //       path.join(uploadPath, f.originalname),
+      //       f.buffer
+      //     )
+      //   )
+      // );
 
       // build DB values (FIXED)
       const values = req.files.map(f => {
-        const filePath = path.join(uploadPath, f.originalname)
-          .replace(process.cwd(), '')
-          .replace(/\\/g, '/');
-
         return [
-          `${filePath}`,
+          f.path
+            .replace(process.cwd(), '')
+            .replace(/\\/g, '/')
+            .replace(
+              publicRoot === '/ai-uploads' ? '/ai-uploads' : '/uploads',
+              publicRoot
+            ),
           f.originalname,
           folder_id,
           user_id,
@@ -169,6 +171,7 @@ exports.uploadFiles = (req, res) => {
       });
 
       const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?)').join(',');
+      console.timeLog("uploadTime");
       await pool.execute(
         `INSERT INTO photos 
          (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready)
