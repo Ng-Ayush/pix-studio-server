@@ -25,52 +25,54 @@ const getFileUrl = (relativePath) =>
 // ========================
 // PRE-MIDDLEWARE (RUNS ONCE)
 // ========================
-const ensureUploadDir = (req) => {
-  const {
-    user_id,
-    studio_name,
-    customer_name,
-    customer_id,
-    event_name,
-    event_id,
-    folder_name,
-    folder_id,
-    is_ai_upload
-  } = req.body;
+const ensureUploadDirMiddleware = async (req, res, next) => {
+  try {
+    const {
+      user_id,
+      studio_name,
+      customer_name,
+      customer_id,
+      event_name,
+      event_id,
+      folder_name,
+      folder_id,
+      is_ai_upload
+    } = req.body;
 
-  if (!user_id || !studio_name || !event_id) {
-    throw new Error('Missing required fields');
+    if (!user_id || !studio_name || !event_id) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const root = is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
+
+    const uploadPath = path.join(
+      root,
+      `user_${safe(user_id)}`,
+      `studio_${safe(studio_name)}`,
+      `customer_${safe(customer_name)}_${safe(customer_id)}`,
+      `event_${safe(event_name)}_${safe(event_id)}`,
+      `${safe(folder_name)}_${safe(folder_id)}`
+    );
+
+    await fs.promises.mkdir(uploadPath, { recursive: true });
+
+    req.uploadPath = uploadPath;
+    next();
+  } catch (err) {
+    next(err);
   }
-
-  const root = is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
-
-  const uploadPath = path.join(
-    root,
-    `user_${safe(user_id)}`,
-    `studio_${safe(studio_name)}`,
-    `customer_${safe(customer_name)}_${safe(customer_id)}`,
-    `event_${safe(event_name)}_${safe(event_id)}`,
-    `${safe(folder_name)}_${safe(folder_id)}`
-  );
-
-  fs.mkdirSync(uploadPath, { recursive: true });
-  return uploadPath;
 };
+
 
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    try {
-      const uploadPath = ensureUploadDir(req);
-      cb(null, uploadPath);
-    } catch (err) {
-      cb(err);
-    }
+    cb(null, req.uploadPath);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
     const name = path.basename(file.originalname, ext);
-    cb(null, `${safe(name)}${ext}`);
+    cb(null, `${Date.now()}_${safe(name)}${ext}`);
   }
 });
 
@@ -90,6 +92,7 @@ const upload = multer({
 // CONTROLLER
 // ========================
 exports.uploadFiles = [
+  ensureUploadDirMiddleware,
   upload.array('files', 10),
   async (req, res) => {
     if (!req.files?.length) {
