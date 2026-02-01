@@ -86,7 +86,7 @@ const safe = (v) => String(v).replace(/[^a-zA-Z0-9_-]/g, '');
 // ========================
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024, files: 410 }, // 10MB
+  limits: { fileSize: 10 * 1024 * 1024, files: 10 }, // 10MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/jpg') {
       cb(null, true);
@@ -100,7 +100,7 @@ exports.uploadFiles = (req, res) => {
 
   console.time("uploadTime");
 
-  upload.array('files', 410)(req, res, async (err) => {
+  upload.array('files', 10)(req, res, async (err) => {
 
     if (err) {
       return res.send({ error: err.message, status: 400 });
