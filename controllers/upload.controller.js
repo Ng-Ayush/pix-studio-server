@@ -103,72 +103,40 @@ const upload = multer({
 // ========================
 // CONTROLLER
 // ========================
-exports.uploadFiles = (req, res) => {
-  console.time("uploadTime");
-
-  upload.array('files', 10)(req, res, async (err) => {
-    if (err) {
-      return res.status(400).json({ error: err.message });
-    }
-
+exports.uploadFiles = [
+  ensureUploadDir,                // creates directory and sets req.uploadPath
+  upload.array('files', 10),      // Multer saves files to req.uploadPath
+  async (req, res) => {           // your controller logic
     if (!req.files?.length) {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    try {
-      const {
-        user_id,
-        folder_id,
-        event_id,
-        is_ai_upload = false,
-        photo_quality = 'basic',
-        is_from_camera = false
-      } = req.body;
+    const { user_id, folder_id, event_id, is_ai_upload = false } = req.body;
+    const publicRoot = is_ai_upload ? '/ai-uploads' : '/uploads';
 
-      const publicRoot = is_ai_upload ? '/ai-uploads' : '/uploads';
+    const values = req.files.map(f => [
+      f.path.replace(process.cwd(), '').replace(/\\/g, '/').replace(
+        publicRoot === '/ai-uploads' ? '/ai-uploads' : '/uploads',
+        publicRoot
+      ),
+      f.originalname,
+      folder_id,
+      user_id,
+      null,
+      false
+    ]);
 
-      const values = req.files.map(f => [
-        f.path
-          .replace(process.cwd(), '')
-          .replace(/\\/g, '/')
-          .replace(
-            publicRoot === '/ai-uploads' ? '/ai-uploads' : '/uploads',
-            publicRoot
-          ),
-        f.originalname,
-        folder_id,
-        user_id,
-        null,
-        false
-      ]);
+    const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?)').join(',');
+    await pool.execute(
+      `INSERT INTO photos (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready)
+       VALUES ${placeholders}`,
+      values.flat()
+    );
 
-      const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?)').join(',');
-      await pool.execute(
-        `INSERT INTO photos
-         (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready)
-         VALUES ${placeholders}`,
-        values.flat()
-      );
+    res.status(200).json({ status: 200, message: 'Batch uploaded' });
+  }
+];
 
-      res.status(200).json({
-        status: 200,
-        message: 'Batch uploaded'
-      });
-
-      if (is_from_camera) {
-        triggerExternalExtraction(
-          folder_id,
-          event_id,
-          [{ url: getFileUrl(values[0][0]) }],
-          ''
-        );
-      }
-
-    } catch (e) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-};
 
 exports.getFiles = async (req, res) => {
   try {
