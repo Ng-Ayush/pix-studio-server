@@ -5,9 +5,6 @@ const fs = require('fs');
 const pool = require('../db_config/db.js');
 const axios = require('axios');
 const FormData = require('form-data');
-const parseForm = multer().fields([
-  { name: 'files', maxCount: 10 }
-]);
 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 const AI_UPLOAD_ROOT = path.join(__dirname, '..', 'ai-uploads'); // ✅ changed
@@ -28,55 +25,47 @@ const getFileUrl = (relativePath) =>
 // ========================
 // PRE-MIDDLEWARE (RUNS ONCE)
 // ========================
-const ensureUploadDir = async (req, res, next) => {
-  try {
-    const {
-      user_id,
-      studio_name,
-      customer_name,
-      customer_id,
-      event_name,
-      event_id,
-      folder_name,
-      folder_id,
-      is_ai_upload
-    } = req.body;
+const ensureUploadDir = (req) => {
+  const {
+    user_id,
+    studio_name,
+    customer_name,
+    customer_id,
+    event_name,
+    event_id,
+    folder_name,
+    folder_id,
+    is_ai_upload
+  } = req.body;
 
-    if (!user_id || !studio_name || !event_id) {
-      return res.status(400).send({
-        status: 400,
-        error: 'Missing required fields'
-      });
-    }
-
-    const root = is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
-
-    const uploadPath = path.join(
-      root,
-      `user_${safe(user_id)}`,
-      `studio_${safe(studio_name)}`,
-      `customer_${safe(customer_name)}_${safe(customer_id)}`,
-      `event_${safe(event_name)}_${safe(event_id)}`,
-      `${safe(folder_name)}_${safe(folder_id)}`
-    );
-
-    await fs.promises.mkdir(uploadPath, { recursive: true });
-
-    // store once
-    req.uploadPath = uploadPath;
-
-    next();
-  } catch (err) {
-    next(err);
+  if (!user_id || !studio_name || !event_id) {
+    throw new Error('Missing required fields');
   }
+
+  const root = is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
+
+  const uploadPath = path.join(
+    root,
+    `user_${safe(user_id)}`,
+    `studio_${safe(studio_name)}`,
+    `customer_${safe(customer_name)}_${safe(customer_id)}`,
+    `event_${safe(event_name)}_${safe(event_id)}`,
+    `${safe(folder_name)}_${safe(folder_id)}`
+  );
+
+  fs.mkdirSync(uploadPath, { recursive: true });
+  return uploadPath;
 };
 
-// ========================
-// MULTER STORAGE (NO FS WORK)
-// ========================
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, req.uploadPath);
+    try {
+      const uploadPath = ensureUploadDir(req);
+      cb(null, uploadPath);
+    } catch (err) {
+      cb(err);
+    }
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
@@ -85,40 +74,32 @@ const storage = multer.diskStorage({
   }
 });
 
+
 // ========================
 // MULTER CONFIG
 // ========================
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024, files: 10 }, // 10MB
+  limits: { fileSize: 10 * 1024 * 1024, files: 10 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/jpg') {
-      cb(null, true);
-    } else {
-      cb(new Error('Only JPG/JPEG files allowed'));
-    }
+    if (/^image\/jpe?g$/.test(file.mimetype)) cb(null, true);
+    else cb(new Error('Only JPG/JPEG files allowed'));
   }
 });
-
 // ========================
 // CONTROLLER
 // ========================
 exports.uploadFiles = [
-  ensureUploadDir,                // creates directory and sets req.uploadPath
-  upload.array('files', 10),      // Multer saves files to req.uploadPath
-  async (req, res) => {           // your controller logic
+  upload.array('files', 10),
+  async (req, res) => {
     if (!req.files?.length) {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    const { user_id, folder_id, event_id, is_ai_upload = false } = req.body;
-    const publicRoot = is_ai_upload ? '/ai-uploads' : '/uploads';
+    const { user_id, folder_id, is_ai_upload = false } = req.body;
 
     const values = req.files.map(f => [
-      f.path.replace(process.cwd(), '').replace(/\\/g, '/').replace(
-        publicRoot === '/ai-uploads' ? '/ai-uploads' : '/uploads',
-        publicRoot
-      ),
+      f.path.replace(process.cwd(), '').replace(/\\/g, '/'),
       f.originalname,
       folder_id,
       user_id,
@@ -127,13 +108,15 @@ exports.uploadFiles = [
     ]);
 
     const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?)').join(',');
+
     await pool.execute(
-      `INSERT INTO photos (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready)
-       VALUES ${placeholders}`,
+      `INSERT INTO photos
+      (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready)
+      VALUES ${placeholders}`,
       values.flat()
     );
 
-    res.status(200).json({ status: 200, message: 'Batch uploaded' });
+    res.json({ status: 200, message: 'Batch uploaded successfully' });
   }
 ];
 
@@ -168,8 +151,9 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
 
     const localurl = `${basePythonUrl}/upload_urls`;
 
-    axios.post(localurl, formData, { ...formData.getHeaders() }, {
-      maxBodyLength: Infinity,
+    axios.post(localurl, formData, {
+      headers: formData.getHeaders(),
+      maxBodyLength: Infinity
     })
       .then(async (response) => {
         await updateFaceDescriptorStatus(event_id);
