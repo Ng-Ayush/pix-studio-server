@@ -67,8 +67,45 @@ const ensureUploadDirMiddleware = async (req, res, next) => {
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, req.uploadPath);
+    try {
+      const {
+        user_id,
+        studio_name,
+        customer_name,
+        customer_id,
+        event_name,
+        event_id,
+        folder_name,
+        folder_id,
+        is_ai_upload
+      } = req.body;
+
+      if (!user_id || !studio_name || !event_id) {
+        return cb(new Error('Missing required fields'));
+      }
+
+      const root =
+        is_ai_upload === '1' || is_ai_upload === 1 || is_ai_upload === true
+          ? AI_UPLOAD_ROOT
+          : UPLOAD_ROOT;
+
+      const uploadPath = path.join(
+        root,
+        `user_${safe(user_id)}`,
+        `studio_${safe(studio_name)}`,
+        `customer_${safe(customer_name)}_${safe(customer_id)}`,
+        `event_${safe(event_name)}_${safe(event_id)}`,
+        `${safe(folder_name)}_${safe(folder_id)}`
+      );
+
+      fs.mkdirSync(uploadPath, { recursive: true });
+
+      cb(null, uploadPath);
+    } catch (err) {
+      cb(err);
+    }
   },
+
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
     const name = path.basename(file.originalname, ext);
