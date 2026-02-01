@@ -1,13 +1,10 @@
-const uploadQueue = require('../utils/uploadQueue.js');
-const multer = require('multer');
+const Busboy = require('busboy');
 const path = require('path');
 const fs = require('fs');
 const pool = require('../db_config/db.js');
-const axios = require('axios');
-const FormData = require('form-data');
 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
-const AI_UPLOAD_ROOT = path.join(__dirname, '..', 'ai-uploads'); // ✅ changed
+const AI_UPLOAD_ROOT = path.join(__dirname, '..', 'ai-uploads');
 
 fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
 fs.mkdirSync(AI_UPLOAD_ROOT, { recursive: true });
@@ -17,45 +14,54 @@ const basePythonUrl = process.env.PYTHON_BASE_URL;
 // ========================
 // HELPERS
 // ========================
-const safe = (v) => String(v).replace(/[^a-zA-Z0-9_-]/g, '');
+const safe = (v) => String(v || '').replace(/[^a-zA-Z0-9_-]/g, '');
 
-// ========================
-// MULTER STORAGE
-// ========================
-const storage = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    try {
-      const {
-        user_id,
-        studio_name,
-        customer_name,
-        customer_id,
-        event_name,
-        event_id,
-        folder_name,
-        folder_id,
-        is_ai_upload
-      } = req.body;
+exports.uploadFiles = async (req, res) => {
+  console.time('uploadTime');
 
-      if (
-        !user_id ||
-        !studio_name ||
-        !event_id
-      ) {
-        return cb(new Error('Missing required fields'));
-      }
+  const busboy = Busboy({
+    headers: req.headers,
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB
+      files: 10
+    }
+  });
 
-      // const basePath = path.join(
-      //   UPLOAD_ROOT,
-      //   `user_${safe(user_id)}`,
-      //   `studio_${safe(studio_name)}`,
-      //   `customer_${safe(customer_name)}_${safe(customer_id)}`,
-      //   `event_${safe(event_name)}_${safe(event_id)}`
-      // );
+  const fields = {};
+  const savedFiles = [];
 
-      const root = !!req.body.is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
+  let uploadPath = null;
+  let publicRoot = '/uploads';
 
-      const uploadPath = path.join(
+  busboy.on('field', (name, value) => {
+    fields[name] = value;
+  });
+
+  busboy.on('file', async (fieldname, file, info) => {
+    const { filename, mimeType } = info;
+
+    if (mimeType !== 'image/jpeg' && mimeType !== 'image/jpg') {
+      file.resume();
+      return;
+    }
+
+    const {
+      user_id,
+      studio_name,
+      customer_name,
+      customer_id,
+      event_name,
+      event_id,
+      folder_name,
+      folder_id,
+      is_ai_upload
+    } = fields;
+
+    if (!uploadPath) {
+      const root = is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
+      publicRoot = is_ai_upload ? '/ai-uploads' : '/uploads';
+
+      uploadPath = path.join(
         root,
         `user_${safe(user_id)}`,
         `studio_${safe(studio_name)}`,
@@ -63,128 +69,62 @@ const storage = multer.diskStorage({
         `event_${safe(event_name)}_${safe(event_id)}`,
         `${safe(folder_name)}_${safe(folder_id)}`
       );
-      ;
 
-      console.timeLog("uploadTime","time se pehle");
-      
       await fs.promises.mkdir(uploadPath, { recursive: true });
-      cb(null, uploadPath);
-      console.timeLog("uploadTime","time ke baad");
-
-    } catch (e) {
-      cb(e);
-    }
-  },
-
-
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
-    cb(null, `${safe(name)}${ext}`);
-  }
-});
-
-// ========================
-// MULTER CONFIG
-// ========================
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024, files: 10 }, // 10MB
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/jpg') {
-      cb(null, true);
-    } else {
-      cb(new Error('Only JPG/JPEG files allowed'));
-    }
-  }
-});
-
-exports.uploadFiles = (req, res) => {
-
-  console.time("uploadTime");
-
-  upload.array('files', 10)(req, res, async (err) => {
-
-    if (err) {
-      return res.send({ error: err.message, status: 400 });
     }
 
-    if (!req.files?.length) {
-      return res.send({ error: 'No files uploaded', status: 400 });
-    }
+    const ext = path.extname(filename);
+    const name = path.basename(filename, ext);
+    const finalName = `${safe(name)}${ext}`;
 
+    const fullPath = path.join(uploadPath, finalName);
+    const writeStream = fs.createWriteStream(fullPath);
+
+    file.pipe(writeStream);
+
+    savedFiles.push({
+      originalname: filename,
+      path: fullPath
+    });
+  });
+
+  busboy.on('finish', async () => {
     try {
+      if (!savedFiles.length) {
+        return res.status(400).json({ error: 'No files uploaded' });
+      }
+
       const {
         user_id,
         folder_id,
         event_id,
         is_ai_upload = false,
         photo_quality = 'basic',
-        is_from_camera = false,
-        studio_name,
-        customer_name,
-        customer_id,
-        event_name,
-        folder_name,
-      } = req.body;
+        is_from_camera = false
+      } = fields;
 
-      const root = is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
-      const publicRoot = is_ai_upload ? '/ai-uploads' : '/uploads';
-
-      // const uploadPath = path.join(
-      //   root,
-      //   `user_${safe(user_id)}`,
-      //   `studio_${safe(studio_name)}`,
-      //   `customer_${safe(customer_name)}_${safe(customer_id)}`,
-      //   `event_${safe(event_name)}_${safe(event_id)}`,
-      //   `${safe(folder_name)}_${safe(folder_id)}`
-      // );
-
-      // create folder
-      // await fs.promises.mkdir(uploadPath, { recursive: true });
-
-      console.timeLog("uploadTime");
-
-      // // write files to disk
-      // await Promise.all(
-      //   req.files.map(f =>
-      //     fs.promises.writeFile(
-      //       path.join(uploadPath, f.originalname),
-      //       f.buffer
-      //     )
-      //   )
-      // );
-
-      // build DB values (FIXED)
-      const values = req.files.map(f => {
-        return [
-          f.path
-            .replace(process.cwd(), '')
-            .replace(/\\/g, '/')
-            .replace(
-              publicRoot === '/ai-uploads' ? '/ai-uploads' : '/uploads',
-              publicRoot
-            ),
-          f.originalname,
-          folder_id,
-          user_id,
-          null,
-          false
-        ];
-      });
+      const values = savedFiles.map(f => [
+        f.path
+          .replace(process.cwd(), '')
+          .replace(/\\/g, '/')
+          .replace(publicRoot, publicRoot),
+        f.originalname,
+        folder_id,
+        user_id,
+        null,
+        false
+      ]);
 
       const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?)').join(',');
-      console.timeLog("uploadTime");
+
       await pool.execute(
-        `INSERT INTO photos 
+        `INSERT INTO photos
          (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready)
          VALUES ${placeholders}`,
         values.flat()
       );
 
-       console.timeLog("uploadTime");
-
-      if (is_ai_upload) {
+      if (is_ai_upload === 'true' || is_ai_upload === true) {
         await pool.execute(
           'UPDATE folders SET isFaceDescriptorReady = 0 WHERE id = ?',
           [folder_id]
@@ -194,7 +134,7 @@ exports.uploadFiles = (req, res) => {
           [event_id]
         );
 
-        let inc = req.files.length;
+        let inc = savedFiles.length;
         if (photo_quality === 'high') inc *= 10;
         else if (photo_quality === 'standard') inc *= 3;
 
@@ -204,25 +144,21 @@ exports.uploadFiles = (req, res) => {
         );
       }
 
-      res.status(200).send({
+      console.timeEnd('uploadTime');
+
+      res.status(200).json({
         status: 200,
         message: 'Batch uploaded',
         isFaceDescriptorReady: false
       });
 
-      if (is_from_camera) {
-        triggerExternalExtraction(
-          folder_id,
-          event_id,
-          [{ url: getFileUrl(values[0][0]) }],
-          ''
-        );
-      }
-
-    } catch (e) {
-      res.status(500).send({ error: e.message, status: 500 });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: err.message });
     }
   });
+
+  req.pipe(busboy);
 };
 
 
