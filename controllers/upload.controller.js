@@ -98,7 +98,7 @@ const upload = multer({
 
 exports.uploadFiles = (req, res) => {
 
-  console.time();
+  console.time("uploadTime");
 
   upload.array('files', 410)(req, res, async (err) => {
 
@@ -140,6 +140,8 @@ exports.uploadFiles = (req, res) => {
       // create folder
       await fs.promises.mkdir(uploadPath, { recursive: true });
 
+      console.timeLog("uploadTime");
+
       // write files to disk
       await Promise.all(
         req.files.map(f =>
@@ -174,7 +176,7 @@ exports.uploadFiles = (req, res) => {
         values.flat()
       );
 
-      console.timeEnd();
+       console.timeLog("uploadTime");
 
       if (is_ai_upload) {
         await pool.execute(
