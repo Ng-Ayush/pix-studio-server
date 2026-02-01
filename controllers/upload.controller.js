@@ -98,6 +98,8 @@ const upload = multer({
 
 exports.uploadFiles = (req, res) => {
 
+  console.time();
+
   upload.array('files', 10)(req, res, async (err) => {
 
     if (err) {
@@ -171,6 +173,8 @@ exports.uploadFiles = (req, res) => {
          VALUES ${placeholders}`,
         values.flat()
       );
+
+      console.timeEnd();
 
       if (is_ai_upload) {
         await pool.execute(
