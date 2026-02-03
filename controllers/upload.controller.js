@@ -23,31 +23,38 @@ fs.mkdirSync(AI_UPLOAD_ROOT, { recursive: true });
 // ========================
 // HELPERS
 // ========================
-const safe = (v) => String(v ?? '').replace(/[^a-zA-Z0-9_-]/g, '');
-
-const toBool = (v) => v === true || v === 'true' || v === '1';
-
-// Directory cache to avoid redundant mkdir calls
-const dirCache = new Set();
-
-const ensureDirectory = async (dirPath) => {
-  if (dirCache.has(dirPath)) return;
-  await fs.promises.mkdir(dirPath, { recursive: true });
-  dirCache.add(dirPath);
-  
-  // Prevent memory leak - clear cache if too large
-  if (dirCache.size > 1000) {
-    dirCache.clear();
+const safe = (v) => String(v).replace(/[^a-zA-Z0-9_-]/g, '');
+const parseBoolean = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'string') {
+    const v = value.trim().toLowerCase();
+    if (v === 'true' || v === '1' || v === 'yes') return true;
+    if (v === 'false' || v === '0' || v === 'no' || v === '') return false;
   }
+  return false;
 };
 
-const buildUploadPath = (body) => {
-  const { user_id, studio_name, customer_name, customer_id, 
-          event_name, event_id, folder_name, folder_id, is_ai_upload } = body;
-  
-  const root = toBool(is_ai_upload) ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
-  
-  return path.join(
+const buildUploadPath = (req) => {
+  const {
+    user_id,
+    studio_name,
+    customer_name,
+    customer_id,
+    event_name,
+    event_id,
+    folder_name,
+    folder_id
+  } = req.body;
+
+  if (!user_id || !studio_name || !event_id) {
+    throw new Error('Missing required fields');
+  }
+
+  const isAiUpload = parseBoolean(req.body.is_ai_upload);
+  const root = isAiUpload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
+
+  const uploadPath = path.join(
     root,
     `user_${safe(user_id)}`,
     `studio_${safe(studio_name)}`,
@@ -55,7 +62,30 @@ const buildUploadPath = (body) => {
     `event_${safe(event_name)}_${safe(event_id)}`,
     `${safe(folder_name)}_${safe(folder_id)}`
   );
+
+  return { uploadPath, isAiUpload };
 };
+
+// ========================
+// MULTER STORAGE
+// ========================
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    try {
+      if (!req.mkdirPromise) {
+        const { uploadPath, isAiUpload } = buildUploadPath(req);
+        req.isAiUpload = isAiUpload;
+        req.cachedUploadPath = uploadPath;
+        req.mkdirPromise = fs.promises.mkdir(uploadPath, { recursive: true });
+      }
+
+      req.mkdirPromise
+        .then(() => cb(null, req.cachedUploadPath))
+        .catch(cb);
+    } catch (e) {
+      cb(e);
+    }
+  },
 
 const getFileUrl = (filePath) => {
   const normalizedPath = filePath.replace(/\\/g, '/');
@@ -146,14 +176,51 @@ exports.uploadFiles = (req, res) => {
         event_name, folder_name,
       } = req.body;
 
-      // Validate required fields
-      if (!user_id || !studio_name || !event_id || !folder_id) {
-        clearTimeout(timeoutId);
-        return res.status(400).json({
-          error: 'Missing required fields: user_id, studio_name, event_id, folder_id',
-          status: 400
-        });
-      }
+      const isAiUpload = parseBoolean(is_ai_upload);
+      const isFromCamera = parseBoolean(is_from_camera);
+      const publicRoot = isAiUpload ? '/ai-uploads' : '/uploads';
+
+      // const uploadPath = path.join(
+      //   root,
+      //   `user_${safe(user_id)}`,
+      //   `studio_${safe(studio_name)}`,
+      //   `customer_${safe(customer_name)}_${safe(customer_id)}`,
+      //   `event_${safe(event_name)}_${safe(event_id)}`,
+      //   `${safe(folder_name)}_${safe(folder_id)}`
+      // );
+
+      // create folder
+      // await fs.promises.mkdir(uploadPath, { recursive: true });
+
+      console.timeLog("uploadTime");
+
+      // // write files to disk
+      // await Promise.all(
+      //   req.files.map(f =>
+      //     fs.promises.writeFile(
+      //       path.join(uploadPath, f.originalname),
+      //       f.buffer
+      //     )
+      //   )
+      // );
+
+      // build DB values (FIXED)
+      const values = req.files.map(f => {
+        return [
+          f.path
+            .replace(process.cwd(), '')
+            .replace(/\\/g, '/')
+            .replace(
+              publicRoot === '/ai-uploads' ? '/ai-uploads' : '/uploads',
+              publicRoot
+            ),
+          f.originalname,
+          folder_id,
+          user_id,
+          null,
+          false
+        ];
+      });
 
       const isAiUpload = toBool(is_ai_upload);
       const isFromCamera = toBool(is_from_camera);
@@ -161,28 +228,14 @@ exports.uploadFiles = (req, res) => {
 
       console.log(`[Upload] Starting upload of ${req.files.length} files`);
 
-      // ─── STEP 1: CREATE DIRECTORY (ONCE) ────────────────
-      const uploadPath = buildUploadPath(req.body);
-      await ensureDirectory(uploadPath);
-      
-      console.log(`[Upload] Directory ready: ${Date.now() - startTime}ms`);
-
-      // ─── STEP 2: WRITE FILES WITH CONTROLLED CONCURRENCY ─
-      const writtenFiles = await writeFilesWithConcurrency(req.files, uploadPath);
-      
-      console.log(`[Upload] ${writtenFiles.length} files written: ${Date.now() - startTime}ms`);
-
-      // ─── STEP 3: PREPARE DB VALUES ──────────────────────
-      const values = writtenFiles.map(f => {
-        // Build relative URL path
-        const relativePath = f.filepath
-          .replace(process.cwd(), '')
-          .replace(/\\/g, '/');
-        
-        // Fix: properly construct the public URL
-        const urlPath = relativePath.replace(
-          isAiUpload ? '/ai-uploads' : '/uploads',
-          publicRoot
+      if (isAiUpload) {
+        await pool.execute(
+          'UPDATE folders SET isFaceDescriptorReady = 0 WHERE id = ?',
+          [folder_id]
+        );
+        await pool.execute(
+          'UPDATE events SET isFaceDescriptorReady = 0 WHERE id = ?',
+          [event_id]
         );
 
         return [urlPath, f.originalname, folder_id, user_id, null, false];
@@ -248,13 +301,13 @@ exports.uploadFiles = (req, res) => {
         duration: `${Date.now() - startTime}ms`
       });
 
-      // ─── STEP 6: ASYNC POST-PROCESSING ──────────────────
-      if (isFromCamera && values.length > 0) {
-        // Fire and forget - don't block response
-        setImmediate(() => {
-          triggerExternalExtraction(folder_id, event_id, [{ url: getFileUrl(values[0][0]) }], '')
-            .catch(err => console.error('[Extraction Error]:', err.message));
-        });
+      if (isFromCamera) {
+        triggerExternalExtraction(
+          folder_id,
+          event_id,
+          [{ url: getFileUrl(values[0][0]) }],
+          ''
+        );
       }
 
     } catch (error) {
@@ -268,9 +321,18 @@ exports.uploadFiles = (req, res) => {
   });
 };
 
-// ========================
-// EXTERNAL EXTRACTION (FIXED AXIOS CONFIG)
-// ========================
+
+exports.getFiles = async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      'SELECT * FROM uploaded_files ORDER BY created_at DESC'
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ message: 'Database error' });
+  }
+};
+
 async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, upload_folder_id) {
   try {
     const [[row]] = await pool.execute(
@@ -308,11 +370,17 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
     await updateFaceDescriptorStatus(event_id);
     console.log('[Extraction] Completed:', response.data);
 
-  } catch (error) {
-    console.error('[Extraction] Failed:', error.message);
-    throw error;
-  }
-}
+    axios.post(localurl, formData, {
+      ...formData.getHeaders(),
+      maxBodyLength: Infinity,
+    })
+      .then(async (response) => {
+        await updateFaceDescriptorStatus(event_id);
+        console.log("✅ Extraction completed:", response.data);
+      })
+      .catch(err => {
+        console.error("⚠️ External API failed:", err);
+      });
 
 // ========================
 // UPDATE FACE DESCRIPTOR STATUS
@@ -441,20 +509,7 @@ async function migrateFile(r, isAiUpload) {
   await pool.execute('UPDATE photos SET photo_url = ? WHERE id = ?', [newUrl, r.photo_id]);
 }
 
-async function downloadImage(url, filePath) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
-
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const arrayBuffer = await response.arrayBuffer();
-    await fs.promises.writeFile(filePath, Buffer.from(arrayBuffer));
-  } finally {
-    clearTimeout(timeout);
-  }
+function getFileUrl(path) {
+  const normalizedPath = path.replace(/\\/g, '/');
+  return `${baseImgUrl}${normalizedPath}`;
 }
