@@ -18,59 +18,64 @@ const basePythonUrl = process.env.PYTHON_BASE_URL;
 // HELPERS
 // ========================
 const safe = (v) => String(v).replace(/[^a-zA-Z0-9_-]/g, '');
+const parseBoolean = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'string') {
+    const v = value.trim().toLowerCase();
+    if (v === 'true' || v === '1' || v === 'yes') return true;
+    if (v === 'false' || v === '0' || v === 'no' || v === '') return false;
+  }
+  return false;
+};
+
+const buildUploadPath = (req) => {
+  const {
+    user_id,
+    studio_name,
+    customer_name,
+    customer_id,
+    event_name,
+    event_id,
+    folder_name,
+    folder_id
+  } = req.body;
+
+  if (!user_id || !studio_name || !event_id) {
+    throw new Error('Missing required fields');
+  }
+
+  const isAiUpload = parseBoolean(req.body.is_ai_upload);
+  const root = isAiUpload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
+
+  const uploadPath = path.join(
+    root,
+    `user_${safe(user_id)}`,
+    `studio_${safe(studio_name)}`,
+    `customer_${safe(customer_name)}_${safe(customer_id)}`,
+    `event_${safe(event_name)}_${safe(event_id)}`,
+    `${safe(folder_name)}_${safe(folder_id)}`
+  );
+
+  return { uploadPath, isAiUpload };
+};
 
 // ========================
 // MULTER STORAGE
 // ========================
 const storage = multer.diskStorage({
-  destination: async (req, file, cb) => {
+  destination: (req, file, cb) => {
     try {
-      const {
-        user_id,
-        studio_name,
-        customer_name,
-        customer_id,
-        event_name,
-        event_id,
-        folder_name,
-        folder_id,
-        is_ai_upload
-      } = req.body;
-
-      if (
-        !user_id ||
-        !studio_name ||
-        !event_id
-      ) {
-        return cb(new Error('Missing required fields'));
+      if (!req.mkdirPromise) {
+        const { uploadPath, isAiUpload } = buildUploadPath(req);
+        req.isAiUpload = isAiUpload;
+        req.cachedUploadPath = uploadPath;
+        req.mkdirPromise = fs.promises.mkdir(uploadPath, { recursive: true });
       }
 
-      // const basePath = path.join(
-      //   UPLOAD_ROOT,
-      //   `user_${safe(user_id)}`,
-      //   `studio_${safe(studio_name)}`,
-      //   `customer_${safe(customer_name)}_${safe(customer_id)}`,
-      //   `event_${safe(event_name)}_${safe(event_id)}`
-      // );
-
-      const root = !!req.body.is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
-
-      const uploadPath = path.join(
-        root,
-        `user_${safe(user_id)}`,
-        `studio_${safe(studio_name)}`,
-        `customer_${safe(customer_name)}_${safe(customer_id)}`,
-        `event_${safe(event_name)}_${safe(event_id)}`,
-        `${safe(folder_name)}_${safe(folder_id)}`
-      );
-      ;
-
-      console.timeLog("uploadTime","time se pehle");
-      
-      await fs.promises.mkdir(uploadPath, { recursive: true });
-      cb(null, uploadPath);
-      console.timeLog("uploadTime","time ke baad");
-
+      req.mkdirPromise
+        .then(() => cb(null, req.cachedUploadPath))
+        .catch(cb);
     } catch (e) {
       cb(e);
     }
@@ -128,8 +133,9 @@ exports.uploadFiles = (req, res) => {
         folder_name,
       } = req.body;
 
-      const root = is_ai_upload ? AI_UPLOAD_ROOT : UPLOAD_ROOT;
-      const publicRoot = is_ai_upload ? '/ai-uploads' : '/uploads';
+      const isAiUpload = parseBoolean(is_ai_upload);
+      const isFromCamera = parseBoolean(is_from_camera);
+      const publicRoot = isAiUpload ? '/ai-uploads' : '/uploads';
 
       // const uploadPath = path.join(
       //   root,
@@ -184,7 +190,7 @@ exports.uploadFiles = (req, res) => {
 
        console.timeLog("uploadTime");
 
-      if (is_ai_upload) {
+      if (isAiUpload) {
         await pool.execute(
           'UPDATE folders SET isFaceDescriptorReady = 0 WHERE id = ?',
           [folder_id]
@@ -210,7 +216,7 @@ exports.uploadFiles = (req, res) => {
         isFaceDescriptorReady: false
       });
 
-      if (is_from_camera) {
+      if (isFromCamera) {
         triggerExternalExtraction(
           folder_id,
           event_id,
@@ -228,7 +234,7 @@ exports.uploadFiles = (req, res) => {
 
 exports.getFiles = async (req, res) => {
   try {
-    const [rows] = await db.query(
+    const [rows] = await pool.execute(
       'SELECT * FROM uploaded_files ORDER BY created_at DESC'
     );
     res.json(rows);
@@ -256,7 +262,8 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
 
     const localurl = `${basePythonUrl}/upload_urls`;
 
-    axios.post(localurl, formData, { ...formData.getHeaders() }, {
+    axios.post(localurl, formData, {
+      ...formData.getHeaders(),
       maxBodyLength: Infinity,
     })
       .then(async (response) => {
