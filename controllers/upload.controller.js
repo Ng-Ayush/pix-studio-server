@@ -10,7 +10,6 @@ const FormData = require('form-data');
 // ========================
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 const AI_UPLOAD_ROOT = path.join(__dirname, '..', 'ai-uploads');
-const MAX_CONCURRENT_WRITES = 10;
 const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 const baseImgUrl = process.env.BASE_IMG_URL;
@@ -30,12 +29,24 @@ const toBool = (v) => v === true || v === 'true' || v === '1';
 // Directory cache to avoid redundant mkdir calls
 const dirCache = new Set();
 
+// Sync version for multer disk storage (called during upload)
+const ensureDirectorySync = (dirPath) => {
+  if (dirCache.has(dirPath)) return;
+  fs.mkdirSync(dirPath, { recursive: true });
+  dirCache.add(dirPath);
+  
+  // Prevent memory leak - clear cache if too large
+  if (dirCache.size > 1000) {
+    dirCache.clear();
+  }
+};
+
+// Async version for migration and other async operations
 const ensureDirectory = async (dirPath) => {
   if (dirCache.has(dirPath)) return;
   await fs.promises.mkdir(dirPath, { recursive: true });
   dirCache.add(dirPath);
   
-  // Prevent memory leak - clear cache if too large
   if (dirCache.size > 1000) {
     dirCache.clear();
   }
@@ -63,37 +74,28 @@ const getFileUrl = (filePath) => {
 };
 
 // ========================
-// CONCURRENT FILE WRITER
+// MULTER CONFIG - DISK STORAGE (✅ FASTER: Stream directly to disk)
 // ========================
-const writeFilesWithConcurrency = async (files, uploadPath, concurrency = MAX_CONCURRENT_WRITES) => {
-  const results = [];
-  
-  for (let i = 0; i < files.length; i += concurrency) {
-    const batch = files.slice(i, i + concurrency);
-    
-    const batchPromises = batch.map(async (file) => {
-      const ext = path.extname(file.originalname);
-      const name = path.basename(file.originalname, ext);
-      const filename = `${safe(name)}${ext}`;
-      const filepath = path.join(uploadPath, filename);
-      
-      await fs.promises.writeFile(filepath, file.buffer);
-      
-      return { filepath, filename, originalname: file.originalname };
-    });
-    
-    const batchResults = await Promise.all(batchPromises);
-    results.push(...batchResults);
+// This is much faster than memory storage for large uploads
+// Files are written as they arrive, not buffered in RAM first
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    // Build path from request body fields
+    const uploadPath = buildUploadPath(req.body);
+    ensureDirectorySync(uploadPath);
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    // Sanitize filename
+    const ext = path.extname(file.originalname);
+    const name = path.basename(file.originalname, ext);
+    const filename = `${safe(name)}${ext}`;
+    cb(null, filename);
   }
-  
-  return results;
-};
+});
 
-// ========================
-// MULTER CONFIG - MEMORY STORAGE (faster parsing)
-// ========================
 const upload = multer({
-  storage: multer.memoryStorage(), // ✅ Parse to memory first, write to disk with control
+  storage: storage, // ✅ OPTIMIZED: Stream directly to disk
   limits: { 
     fileSize: 10 * 1024 * 1024, // 10MB per file
     files: 100 
@@ -111,6 +113,8 @@ const upload = multer({
 // ========================
 // MAIN UPLOAD HANDLER
 // ========================
+// ✅ OPTIMIZED: Uses disk storage for faster uploads
+// Files are streamed directly to disk as they arrive
 exports.uploadFiles = (req, res) => {
   const startTime = Date.now();
   let timeoutId;
@@ -159,36 +163,24 @@ exports.uploadFiles = (req, res) => {
       const isFromCamera = toBool(is_from_camera);
       const publicRoot = isAiUpload ? '/ai-uploads' : '/uploads';
 
-      console.log(`[Upload] Starting upload of ${req.files.length} files`);
+      console.log(`[Upload] Received ${req.files.length} files: ${Date.now() - startTime}ms`);
 
-      // ─── STEP 1: CREATE DIRECTORY (ONCE) ────────────────
-      const uploadPath = buildUploadPath(req.body);
-      await ensureDirectory(uploadPath);
+      // ✅ OPTIMIZED: Files already written to disk by multer disk storage
+      // No need for manual file writing - this is the key speed improvement!
       
-      console.log(`[Upload] Directory ready: ${Date.now() - startTime}ms`);
+      console.log(`[Upload] Files saved to disk: ${Date.now() - startTime}ms`);
 
-      // ─── STEP 2: WRITE FILES WITH CONTROLLED CONCURRENCY ─
-      const writtenFiles = await writeFilesWithConcurrency(req.files, uploadPath);
-      
-      console.log(`[Upload] ${writtenFiles.length} files written: ${Date.now() - startTime}ms`);
-
-      // ─── STEP 3: PREPARE DB VALUES ──────────────────────
-      const values = writtenFiles.map(f => {
-        // Build relative URL path
-        const relativePath = f.filepath
+      // ─── PREPARE DB VALUES ──────────────────────────────
+      const values = req.files.map(f => {
+        // Build relative URL path from the file path
+        const relativePath = f.path
           .replace(process.cwd(), '')
           .replace(/\\/g, '/');
         
-        // Fix: properly construct the public URL
-        const urlPath = relativePath.replace(
-          isAiUpload ? '/ai-uploads' : '/uploads',
-          publicRoot
-        );
-
-        return [urlPath, f.originalname, folder_id, user_id, null, false];
+        return [relativePath, f.originalname, folder_id, user_id, null, false];
       });
 
-      // ─── STEP 4: DATABASE TRANSACTION ───────────────────
+      // ─── DATABASE TRANSACTION ───────────────────────────
       const connection = await pool.getConnection();
       
       try {
@@ -237,18 +229,18 @@ exports.uploadFiles = (req, res) => {
         connection.release(); // ✅ Always release connection
       }
 
-      // ─── STEP 5: SEND RESPONSE ──────────────────────────
+      // ─── SEND RESPONSE ──────────────────────────────────
       clearTimeout(timeoutId);
       
       res.status(200).json({
         status: 200,
         message: 'Batch uploaded',
-        count: writtenFiles.length,
+        count: req.files.length,
         isFaceDescriptorReady: false,
         duration: `${Date.now() - startTime}ms`
       });
 
-      // ─── STEP 6: ASYNC POST-PROCESSING ──────────────────
+      // ─── ASYNC POST-PROCESSING ──────────────────────────
       if (isFromCamera && values.length > 0) {
         // Fire and forget - don't block response
         setImmediate(() => {
