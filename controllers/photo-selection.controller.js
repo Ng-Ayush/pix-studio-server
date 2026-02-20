@@ -11,6 +11,8 @@ admin.initializeApp({
 
 const bucket = admin.storage().bucket();
 const multer = require('multer');
+const basePythonUrl = process.env.PYTHON_BASE_URL;
+const baseImgUrl = process.env.BASE_IMG_URL;
 
 const upload = multer();
 
@@ -263,6 +265,7 @@ exports.getUploadedPhotosByFolderId = async (req, res) => {
         const query = `SELECT 
     c.name,
     c.customer_unique_id,
+    c.id AS customer_id,
     e.event_name,
     e.id AS event_id,
     e.is_event_submitted,
@@ -293,6 +296,7 @@ WHERE f.id = ?;`
         const response = {
             customer_name: result[0]?.name,
             customer_unique_id: result[0]?.customer_unique_id,
+            customer_id: result[0]?.customer_id,
             event_name: result[0]?.event_name,
             event_id: result[0]?.event_id,
             folder_name: result[0]?.folder_name,
@@ -311,7 +315,7 @@ WHERE f.id = ?;`
                 .filter(row => row.photo_id !== null)
                 .map(row => ({
                     photo_id: row.photo_id,
-                    photo_url: row.photo_url,
+                    photo_url: !row.photo_url.includes("surajproductions-3f28b.firebasestorage.app") ? getFileUrl(row.photo_url) : row.photo_url,
                     uploaded_by: row.uploaded_by,
                     photo_name: row.photo_name,
                     is_selected: !!row.is_selected,
@@ -371,30 +375,21 @@ exports.deletePhotos = async (req, res) => {
     if (!Array.isArray(photos) || photos.length === 0) {
         return res.status(400).json({ message: 'Invalid photo data' });
     }
+    const ids = photos.map(p => Number(p.id)).filter(Boolean);
 
-    const fileDeletePromises = [];
-    const photoIds = [];
-
-    for (const photo of photos) {
-        const { id, url } = photo;
-        const filePath = extractFirebasePath(url);
-
-        if (!filePath || !id) continue;
-
-        photoIds.push(id);
-        fileDeletePromises.push(bucket.file(filePath).delete().catch(err => {
-            console.error(`Failed to delete ${filePath}`, err.message);
-        }));
+    if (!ids.length) {
+        return res.status(400).json({ message: 'Invalid ids' });
     }
 
-    try {
-        await Promise.all(fileDeletePromises);
+    const placeholders = ids.map(() => '?').join(',');
 
-        if (photoIds.length > 0) {
-            const placeholders = photoIds.map(() => '?').join(',');
-            const deleteQuery = `DELETE FROM photos WHERE folder_id = ${folder_id} AND id IN (${placeholders})`;
-            await pool.execute(deleteQuery, photoIds);
-        }
+    try {
+        await pool.execute(
+            `DELETE FROM photos
+             WHERE folder_id = ?
+             AND id IN (${placeholders})`,
+            [folder_id, ...ids]
+        );
 
         return res.send({ message: 'Photos deleted successfully', status: 200 });
     } catch (err) {
@@ -543,9 +538,11 @@ exports.getAllPhotosByEventId = async (req, res) => {
 
         const [result] = await pool.query(dataQuery, dataParams);
 
+        const formattedResult = result.map(row => ({...row, photo_url: !row.photo_url?.includes("surajproductions-3f28b.firebasestorage.app") ? getFileUrl(row.photo_url) : row.photo_url}));
+
         res.send({
             message: 'Photos fetched successfully',
-            data: result,
+            data: formattedResult,
             pagination: {
                 total,
                 page,
@@ -674,7 +671,9 @@ exports.checkEventReady = async (req, res) => {
         // };
         // http://157.173.221.163:8003
 
-        const url = `http://157.173.221.163:8888/check_status/${wedding_folder_id}`;
+        //http://103
+
+        const url = `${basePythonUrl}/check_status/${wedding_folder_id}`;
 
 
         const response = await axios.get(url);
@@ -843,7 +842,7 @@ exports.findPerson = async (req, res) => {
         formData.append('wedding_folder_id', wedding_folder_id);
 
 
-        const response = await axios.post(`http://157.173.221.163:8888/find_person`, formData, { ...formData.getHeaders(), maxBodyLength: Infinity });
+        const response = await axios.post(`${basePythonUrl}/find_person`, formData, { ...formData.getHeaders(), maxBodyLength: Infinity });
        
         // Extract the actual response body
         const responseBody = response.data;
@@ -966,7 +965,7 @@ exports.reUploadFaceDescriptor = async (req, res) => {
         const response = {
             uploadedUrls: rows.map(row => ({
                 folder_id: row.folder_id,
-                url: row.url,
+                url:  !row.url.includes("surajproductions-3f28b.firebasestorage.app") ? getFileUrl(row.url) : row.url,
                 name: row.name
             })),
             uploaded_by: rows[0].uploaded_by,
@@ -974,8 +973,6 @@ exports.reUploadFaceDescriptor = async (req, res) => {
             is_ai_upload: !!rows[0].is_ai_upload,
             wedding_folder_id: rows[0].wedding_folder_id
         };
-
-        console.log(response.uploadedUrls.length, "photos to be re-uploaded for face descriptor");
 
 
         await triggerExternalExtraction('', event_id, response.uploadedUrls, '');
@@ -985,4 +982,9 @@ exports.reUploadFaceDescriptor = async (req, res) => {
         console.error(err);
         res.status(500).json({ error: 'Internal server error', message: "Something went wrong" });
     }
+}
+
+function getFileUrl(path) {
+    const normalizedPath = path.replace(/\\/g, '/');
+    return `${baseImgUrl}${normalizedPath}`;
 }
