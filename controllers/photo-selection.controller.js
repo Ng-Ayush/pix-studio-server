@@ -174,8 +174,22 @@ WHERE f.event_id = ?; `, [event_id]);
 exports.createNewFolder = async (req, res) => {
     try {
         const { event_id, folder_name } = req.body;
+
+         const [existing] = await pool.execute(
+            `SELECT id FROM folders WHERE folder_name = ? AND event_id = ?`,
+            [folder_name, event_id]
+        );
+
+        if (existing.length > 0) {
+            return res.send({
+                message: "Folder already exists",
+                status: 400,
+                success: false
+            });
+        }
+
         const [result] = await pool.execute(`INSERT INTO folders (folder_name, event_id) VALUES (?,?)`, [folder_name, event_id]);
-        res.send({ message: "Folder Fetched", status: 200 })
+        res.send({ message: "Folder Created", status: 200, folder_id: result.insertId})
 
     } catch (error) {
         res.send({ message: "Folder Fetched", data: result, status: 200 })
