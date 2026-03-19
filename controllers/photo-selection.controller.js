@@ -572,6 +572,50 @@ exports.getAllPhotosByEventId = async (req, res) => {
     }
 };
 
+exports.getNewPhotos = async (req, res) => {
+    try {
+        let { event_id } = req.params;
+        let { user, folder_id, last_seen_id } = req.query;
+
+        event_id = Number(event_id);
+        user = Number(user);
+        folder_id = folder_id ? Number(folder_id) : null;
+        last_seen_id = Number(last_seen_id || 0);
+
+        let query = `
+      SELECT p.id, p.photo_url, p.uploaded_by, p.folder_id,
+             p.photo_name, p.is_selected, p.is_favourite
+      FROM photos p
+      JOIN folders f ON p.folder_id = f.id
+      WHERE f.event_id = ?
+        AND p.uploaded_by = ?
+        AND p.id > ?
+    `;
+
+        let params = [event_id, user, last_seen_id];
+
+        if (folder_id) {
+            query += ` AND f.id = ?`;
+            params.push(folder_id);
+        }
+
+        query += ` ORDER BY p.id DESC LIMIT 5`;
+
+        const [result] = await pool.query(query, params);
+
+        const formattedResult = result.map(row => ({...row, photo_url: !row.photo_url?.includes("surajproductions-3f28b.firebasestorage.app") ? getFileUrl(row.photo_url) : row.photo_url}));
+
+
+        res.send({
+            data: formattedResult,
+            status: 200
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: 'Internal server error' });
+    }
+};
 
 exports.getFoldersByEventId = async (req, res) => {
     try {
