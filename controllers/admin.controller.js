@@ -22,9 +22,25 @@ exports.login = async (req, res) => {
 
 exports.getAllUsers = async (req, res) => {
     try {
-        const query = `SELECT * FROM users ORDER BY id DESC`
-        const [customers] = await pool.execute(query);
-        res.send({ message: "users fetched successfully", data: customers, status: 200 });
+        const { status } = req.query; // true / false
+
+        let query = `SELECT * FROM users`;
+        let params = [];
+
+        if (status !== undefined) {
+            query += ` WHERE status = ?`;
+            params.push(status === 'true' ? 1 : 0);
+        }
+
+        query += ` ORDER BY id DESC`;
+
+        const [customers] = await pool.execute(query, params);
+
+        res.send({
+            message: "users fetched successfully",
+            data: customers,
+            status: 200
+        });
     } catch (err) {
         res.status(500).send({ error: 'Failed to fetch users' });
     }
