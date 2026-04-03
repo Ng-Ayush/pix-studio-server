@@ -348,7 +348,7 @@ exports.sendPdfViaWhatsApp = async (req, res) => {
       'Here is your PDF 📄'
     );
 
-    res.send({ success: 200 });
+    res.send({ status: 200 });
 
   } catch (err) {
     console.error(err);

@@ -1,55 +1,75 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const clients = new Map();
+const { create, ev } = require("@open-wa/wa-automate");
+const path = require("path");
 
-async function initWhatsAppClientForAdmin(adminId) {
-    if (clients.has(adminId)) return clients.get(adminId);
+const SESSIONS_DIR = path.join(process.cwd(), "sessions");
 
-    const client = new Client({
-        authStrategy: new LocalAuth({ clientId: adminId.toString() }),
-        puppeteer: {
-            headless: true,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process',
-                '--disable-gpu'
+const emittedQrSessions = new Set();
+let qrListenerAttached = false;
 
+const pendingClients = new Map();
 
-                // '--no-sandbox',
-                // '--disable-setuid-sandbox',
-                // '--disable-dev-shm-usage',
-                // '--disable-accelerated-2d-canvas',
-                // '--no-first-run',
-                // '--no-zygote',
-                // '--single-process',
-                // '--disable-gpu',
-                // '--disable-extensions',
-                // '--disable-background-timer-throttling',
-                // '--disable-backgrounding-occluded-windows',
-                // '--disable-renderer-backgrounding',
-                // '--disable-infobars',
-                // '--window-size=800,600'
+function attachQrListener(io) {
+    if (qrListenerAttached) return;
 
-            ]
-        }  // or false for debugging
+    ev.on("qr.**", (qr, sessionId) => {
+        if (emittedQrSessions.has(sessionId)) return;
+
+        emittedQrSessions.add(sessionId);
+
+        const userId = sessionId.replace("user_", "");
+        console.log("📲 QR for:", sessionId);
+
+        io.to(`user_${userId}`).emit("wa:qr", qr);
     });
 
-    clients.set(adminId, client);
-    console.log("CLIENT HERE ", clients);
-
-    return client;
+    qrListenerAttached = true;
 }
 
-async function destroyWhatsAppClient(adminId) {
-    if (clients.has(adminId)) {
-        const client = clients.get(adminId);
-        await client.destroy();
-        clients.delete(adminId);
+async function createClient(sessionId, userId, io) {
+    attachQrListener(io); // ✅ ONLY PLACE QR IS ATTACHED
+
+    if (pendingClients.has(sessionId)) {
+        console.log(`⏳ Session ${sessionId} already in progress, reusing...`);
+        return pendingClients.get(sessionId);
     }
+
+    emittedQrSessions.delete(sessionId);
+
+    const clientPromise = create({
+        sessionId,
+        multiDevice: true,
+        headless: true,
+        useChrome: true,
+        sessionDataPath: SESSIONS_DIR,
+        qrTimeout: 60,
+        authTimeout: 60,
+        eventMode: true,
+        disableSpins: true,
+        skipUpdateCheck: true,
+        killProcessOnBrowserClose: true,
+    }).then((client) => {
+        console.log("✅ Client ready:", sessionId);
+        pendingClients.delete(sessionId); // ✅ No longer pending
+        io.to(`user_${userId}`).emit("wa:connected");
+        return client;
+    }).catch((err) => {
+        pendingClients.delete(sessionId); // ✅ Clean up on failure too
+        throw err;
+    });
+
+    // ✅ Store the promise immediately so parallel calls reuse it
+    pendingClients.set(sessionId, clientPromise);
+
+    return clientPromise;
 }
 
-module.exports = { initWhatsAppClientForAdmin, destroyWhatsAppClient, clients };
+function killPending(sessionId) {
+    pendingClients.delete(sessionId);
+    emittedQrSessions.delete(sessionId);
+}
+
+function isPending(sessionId) {
+    return pendingClients.has(sessionId);
+}
+
+module.exports = { createClient,killPending, isPending };

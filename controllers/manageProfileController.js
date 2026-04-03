@@ -1,9 +1,10 @@
 const pool = require('../db_config/db.js');
-const { create, ev } = require("@open-wa/wa-automate");
+// const { create, ev } = require("@open-wa/wa-automate");
 const fs = require('fs');
 const path = require('path');
 const waClients = require('../server.js');
-const emittedQrSessions = new Set();
+const { createClient,killPending, isPending } = require('../whatsappClientManager.js');
+const SESSIONS_DIR = path.join(process.cwd(), "sessions");
 
 // -------------------- GET USER --------------------
 exports.getUsersByCurrentId = async (req, res) => {
@@ -71,81 +72,103 @@ exports.updateProfile = async (req, res) => {
 
 exports.connectToWhatsApp = async (req, res) => {
     const io = req.app.locals.io;
+
     const userId = req.user?.id || req.params.userId;
     const sessionId = `user_${userId}`;
 
+    // ✅ Already connected
     if (waClients.has(userId)) {
-        return res.send({ status: true, message: "Already connected" });
+        return res.send({
+            status: true,
+            message: "Already connected"
+        });
     }
 
-    res.send({ status: 200, message: "WhatsApp connection started", waClients: waClients });
+    if (isPending(sessionId)) {
+        console.log(`♻️ QR already pending for ${sessionId}, re-emitting...`);
+        // Just tell frontend to wait, QR will re-emit via the listener
+        return res.send({ status: 200, message: "QR already in progress, check socket" });
+    }
 
-    // Listen to ALL QR events and filter by session
-    ev.on("qr.**", (qr, eventSessionId) => {
-        if (eventSessionId === sessionId) {
-            if (emittedQrSessions.has(sessionId)) return;
-            emittedQrSessions.add(sessionId);
-            console.log("🚀 QR event for session:", eventSessionId);
-            io.to(`user_${userId}`).emit("wa:qr", qr);
-        }
+    res.send({
+        status: 200,
+        message: "Initializing WhatsApp..."
     });
 
     try {
-        const client = await create({
-            sessionId,
-            multiDevice: true,
-            headless: true,
-            qrTimeout: 0
-        });
+        const client = await createClient(sessionId, userId, io);
 
         waClients.set(userId, client);
-        console.log("🚀🚀🚀🚀🚀🚀🚀🚀 PUTER READY :");
-        try {
-            await pool.query(
-                `INSERT INTO whatsapp_sessions (user_id, status, last_connected)
+
+        // ✅ DB UPDATE
+        await pool.query(
+            `INSERT INTO whatsapp_sessions (user_id, status, last_connected)
              VALUES (?, 'ready', NOW())
-             ON DUPLICATE KEY UPDATE status='ready', last_connected=NOW()`,
-                [userId]
-            );
-        } catch (e) {
-            console.warn('DB update failed:', e.message);
-        }
-        io.to(`user_${userId}`).emit("wa:connected");
+             ON DUPLICATE KEY UPDATE 
+             status='ready', 
+             last_connected=NOW()`,
+            [userId]
+        );
 
     } catch (err) {
         console.error("❌ WA init error:", err);
-        io.to(`user_${userId}`).emit("wa:error", "Failed to init WhatsApp");
+        killPending(sessionId);
+        const sessionPath = path.join(process.cwd(), 'session',`_IGNORE_${sessionId}`);
+        if (fs.existsSync(sessionPath)) {
+            fs.rmSync(sessionPath, { recursive: true, force: true });
+            console.log("🗑️ Deleted session folder after failure:", sessionPath);
+        }
+        io.to(`user_${userId}`).emit(
+            "wa:error",
+            "Failed to init WhatsApp"
+        );
     }
 };
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 exports.disconnectWhatsApp = async (req, res) => {
     try {
         const userId = req.user.id;
         const sessionId = `user_${userId}`;
         const client = waClients.get(userId);
 
-        if (!client) {
-            return res.send({ status: 400, message: "No active session" });
+        // if (!client) {
+        //     return res.send({ status: 400, message: "No active session" });
+        // }
+
+        if(client){
+            await client.logout();
         }
 
         // 🔒 Logout WhatsApp
-        await client.logout();
 
         // 🧹 Remove from memory
-        waClients.delete(userId);
+        cleanChromeLocks();
+        await sleep(1000); 
+
+        
 
         // 🗃️ Remove from DB
         // await SessionModel.deleteOne({ userId });
 
         // 🗑️ Force delete session folder (Linux)
-        const sessionPath = path.join(process.cwd(), `_IGNORE_${sessionId}`);
+        const sessionPath = path.join(process.cwd(),'sessions', `_IGNORE_${sessionId}`);
+        const userJsonPath = path.join(process.cwd(),'sessions', `${sessionId}.data.json`);
+
+        if (fs.existsSync(userJsonPath)) {
+            await deleteFileWithRetry(userJsonPath);
+            console.log("🗑️ Deleted user json:", userJsonPath);
+        }
 
         if (fs.existsSync(sessionPath)) {
-            fs.rmSync(sessionPath, { recursive: true, force: true });
+            await deleteFileWithRetry(sessionPath);
             console.log("🗑️ Deleted session folder:", sessionPath);
         } else {
             console.log("ℹ️ Session folder not found:", sessionPath);
         }
+
+        waClients.delete(userId);
+
 
         return res.send({
             status: 200,
@@ -157,6 +180,46 @@ exports.disconnectWhatsApp = async (req, res) => {
         return res.send({ status: 500, error: err.message });
     }
 };
+
+const deleteFileWithRetry = async (filePath, retries = 5, delay = 2000) => {
+    let attempts = 0;
+    while (attempts < retries) {
+        try {
+            await fs.rm(filePath);
+            console.log(`🗑️ Successfully deleted file: ${filePath}`);
+            return; // Successfully deleted
+        } catch (err) {
+            if (err.code === 'EBUSY' && attempts < retries - 1) {
+                console.log(`⚠️ File is busy, retrying... (${attempts + 1}/${retries})`);
+                attempts++;
+                await sleep(delay); // Wait before retrying
+            } else {
+                console.error(`❌ Error deleting file: ${err.message}`);
+                throw err; // Rethrow the error after retries
+            }
+        }
+    }
+};
+
+
+function cleanChromeLocks(sessionId) {
+    const ignoreFolder = path.join(SESSIONS_DIR, `_IGNORE_${sessionId}`);
+      const lockFiles = [
+        "SingletonLock",
+        "SingletonCookie", 
+        "SingletonSocket",
+        "lockfile",          // ← this is your culprit
+        "DevToolsActivePort" // ← also clean this
+    ];
+
+    lockFiles.forEach((file) => {
+        const lockPath = path.join(ignoreFolder, file);
+        if (fs.existsSync(lockPath)) {
+            fs.rmSync(lockPath, { force: true });
+            console.log(`🧹 Removed lock file: ${file}`);
+        }
+    });
+}
 
 
 

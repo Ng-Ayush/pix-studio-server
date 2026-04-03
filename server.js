@@ -33,6 +33,7 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const restoreSessions = require("./utils/restoreSessions");
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
@@ -143,6 +144,7 @@ app.get('/health', (req, res) => {
 // --------------------------------------------------
 const PORT = process.env.PORT || 3000;
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
+   await restoreSessions(waClients, io);
   console.log(`🚀 Server running on port ${PORT}`);
 });
