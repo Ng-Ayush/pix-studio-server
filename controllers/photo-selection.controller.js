@@ -295,6 +295,7 @@ exports.getUploadedPhotosByFolderId = async (req, res) => {
     f.id AS folder_id,
     p.id AS photo_id,
     p.photo_url,
+    p.thumbnail_url,
     p.uploaded_by,
     p.photo_name,
     p.is_selected,
@@ -330,6 +331,7 @@ WHERE f.id = ?;`
                 .map(row => ({
                     photo_id: row.photo_id,
                     photo_url: !row.photo_url.includes("surajproductions-3f28b.firebasestorage.app") ? getFileUrl(row.photo_url) : row.photo_url,
+                    thumbnail_url: row.thumbnail_url ? getFileUrl(row.thumbnail_url) : null,
                     uploaded_by: row.uploaded_by,
                     photo_name: row.photo_name,
                     is_selected: !!row.is_selected,
@@ -533,7 +535,7 @@ exports.getAllPhotosByEventId = async (req, res) => {
 
         // Data query
         let dataQuery = `
-            SELECT DISTINCT p.id, p.photo_url, p.uploaded_by, p.folder_id,
+            SELECT DISTINCT p.id, p.photo_url,p.thumbnail_url, p.uploaded_by, p.folder_id,
                             p.photo_name, p.face_descriptor, p.descriptor_ready,
                             p.is_selected, p.is_favourite, f.folder_name
             FROM photos p
@@ -552,7 +554,7 @@ exports.getAllPhotosByEventId = async (req, res) => {
 
         const [result] = await pool.query(dataQuery, dataParams);
 
-        const formattedResult = result.map(row => ({...row, photo_url: !row.photo_url?.includes("surajproductions-3f28b.firebasestorage.app") ? getFileUrl(row.photo_url) : row.photo_url}));
+        const formattedResult = result.map(row => ({...row, thumbnail_url: row.thumbnail_url && getFileUrl(row.thumbnail_url), photo_url: !row.photo_url?.includes("surajproductions-3f28b.firebasestorage.app") ? getFileUrl(row.photo_url) : row.photo_url}));
 
         res.send({
             message: 'Photos fetched successfully',

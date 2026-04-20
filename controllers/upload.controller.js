@@ -58,175 +58,28 @@ const upload = multer({
   }
 });
 
-
-// ========================
-// MAIN UPLOAD HANDLER
-// ========================
-// ✅ OPTIMIZED: Uses disk storage for faster uploads
-// Files are streamed directly to disk as they arrive
-
-
-// exports.uploadFiles = (req, res) => {
-//   const startTime = Date.now();
-//   let timeoutId;
-
-//   // Global timeout to prevent stuck processes
-//   timeoutId = setTimeout(() => {
-//     if (!res.headersSent) {
-//       console.error('[Upload] Timeout exceeded');
-//       res.status(408).json({ error: 'Upload timeout', status: 408 });
-//     }
-//   }, UPLOAD_TIMEOUT_MS);
-
-//   upload.array('files', 100)(req, res, async (err) => {
-//     try {
-//       // ─── VALIDATION ─────────────────────────────────────
-//       if (err) {
-//         clearTimeout(timeoutId);
-//         console.error('[Upload] Multer error:', err.message);
-//         return res.status(400).json({ error: err.message, status: 400 });
-//       }
-
-//       if (!req.files?.length) {
-//         clearTimeout(timeoutId);
-//         return res.status(400).json({ error: 'No files uploaded', status: 400 });
-//       }
-
-//       const {
-//         user_id, folder_id, event_id,
-//         is_ai_upload = false,
-//         photo_quality = 'basic',
-//         is_from_camera = false,
-//         studio_name, customer_name, customer_id,
-//         event_name, folder_name,
-//       } = req.body;
-
-//       // Validate required fields
-//       if (!user_id || !studio_name || !event_id || !folder_id) {
-//         clearTimeout(timeoutId);
-//         return res.status(400).json({
-//           error: 'Missing required fields: user_id, studio_name, event_id, folder_id',
-//           status: 400
-//         });
-//       }
-
-//       const isAiUpload = toBool(is_ai_upload);
-//       const isFromCamera = toBool(is_from_camera);
-//       const publicRoot = isAiUpload ? '/ai-uploads' : '/uploads';
-
-//       console.log(`[Upload] Received ${req.files.length} files: ${Date.now() - startTime}ms`);
-
-//       // ✅ OPTIMIZED: Files already written to disk by multer disk storage
-//       // No need for manual file writing - this is the key speed improvement!
-
-//       console.log(`[Upload] Files saved to disk: ${Date.now() - startTime}ms`);
-
-//       // ─── PREPARE DB VALUES ──────────────────────────────
-//       const values = req.files.map(f => {
-//         // Build relative URL path from the file path
-//         const relativePath = f.path
-//           .replace(process.cwd(), '')
-//           .replace(/\\/g, '/');
-
-//         return [relativePath, f.originalname, folder_id, user_id, null, false];
-//       });
-
-//       // ─── DATABASE TRANSACTION ───────────────────────────
-//       const connection = await pool.getConnection();
-
-//       try {
-//         await connection.beginTransaction();
-
-//         // Bulk insert all photos
-//         const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?)').join(',');
-//         await connection.execute(
-//           `INSERT INTO photos 
-//            (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready)
-//            VALUES ${placeholders}`,
-//           values.flat()
-//         );
-
-//         if (isAiUpload) {
-//           // Batch the status updates
-//           await Promise.all([
-//             connection.execute(
-//               'UPDATE folders SET isFaceDescriptorReady = 0 WHERE id = ?',
-//               [folder_id]
-//             ),
-//             connection.execute(
-//               'UPDATE events SET isFaceDescriptorReady = 0 WHERE id = ?',
-//               [event_id]
-//             )
-//           ]);
-
-//           // Calculate and update photo count
-//           let inc = req.files.length;
-//           if (photo_quality === 'high') inc *= 10;
-//           else if (photo_quality === 'standard') inc *= 3;
-
-//           await connection.execute(
-//             'UPDATE users SET used_photo_count = used_photo_count + ? WHERE id = ?',
-//             [inc, user_id]
-//           );
-//         }
-
-//         await connection.commit();
-//         console.log(`[Upload] DB transaction complete: ${Date.now() - startTime}ms`);
-
-//       } catch (dbError) {
-//         await connection.rollback();
-//         throw dbError;
-//       } finally {
-//         connection.release(); // ✅ Always release connection
-//       }
-
-//       // ─── SEND RESPONSE ──────────────────────────────────
-//       clearTimeout(timeoutId);
-
-//       res.status(200).json({
-//         status: 200,
-//         message: 'Batch uploaded',
-//         count: req.files.length,
-//         isFaceDescriptorReady: false,
-//         duration: `${Date.now() - startTime}ms`
-//       });
-
-//       // ─── ASYNC POST-PROCESSING ──────────────────────────
-//       if (isFromCamera && values.length > 0) {
-//         // Fire and forget - don't block response
-//         setImmediate(() => {
-//           triggerExternalExtraction(folder_id, event_id, [{ url: getFileUrl(values[0][0]) }], '')
-//             .catch(err => console.error('[Extraction Error]:', err.message));
-//         });
-//       }
-
-//     } catch (error) {
-//       clearTimeout(timeoutId);
-//       console.error('[Upload] Critical error:', error);
-
-//       if (!res.headersSent) {
-//         res.status(500).json({ error: error.message, status: 500 });
-//       }
-//     }
-//   });
-// };
-
-
-
-
-
+const uploadFields = upload.fields([
+  { name: 'files', maxCount: 100 },
+  { name: 'thumbnail_files', maxCount: 100 }
+]);
 
 exports.uploadFiles = (req, res) => {
 
-  upload.array("files", 100)(req, res, async (err) => {
+  uploadFields(req, res, async (err) => {
 
     if (err) {
       return res.status(400).json({ error: err.message });
     }
 
-    if (!req.files?.length) {
+    const mainFiles = req.files?.['files'] || [];
+    const thumbFiles = req.files?.['thumbnail_files'] || [];  // ← s
+    console.log(thumbFiles);
+
+
+    if (!mainFiles?.length) {
       return res.status(400).json({ error: "No files uploaded" });
     }
+
 
     const {
       user_id,
@@ -238,7 +91,7 @@ exports.uploadFiles = (req, res) => {
       folder_name,
       folder_id,
       is_ai_upload = false,
-      is_from_camera=false,
+      is_from_camera = false,
       photo_quality = 'basic'
     } = req.body;
 
@@ -249,47 +102,63 @@ exports.uploadFiles = (req, res) => {
       `event_${safe(event_name)}_${safe(event_id)}/` +
       `${safe(folder_name)}_${safe(folder_id)}/`;
 
+    const thumbPrefix = prefix + `thumbnails/`;
+
     const uploadResults = [];
     const MAX_CONCURRENT = 5;
-    let index = 0;
 
-    async function worker() {
+    let mainIndex = 0;
+    async function mainWorker() {
       while (true) {
-        const currentIndex = index++;
-        if (currentIndex >= req.files.length) break;
-
-        const file = req.files[currentIndex];
-
-        const objectName =
-          prefix + Date.now() + "_" + file.originalname;
-
-        const contentType = file.mimetype || "image/jpeg";
-
-        await s3.send(
-          new PutObjectCommand({
-            Bucket: bucketName,
-            Key: objectName,
-            Body: file.buffer,
-            ContentType: contentType
-          })
-        );
-
-        uploadResults.push({
-          objectName,
-          originalName: file.originalname
-        });
+        const i = mainIndex++;
+        if (i >= mainFiles.length) break;
+        const file = mainFiles[i];
+        const objectName = prefix + Date.now() + "_" + file.originalname;
+        await s3.send(new PutObjectCommand({
+          Bucket: bucketName,
+          Key: objectName,
+          Body: file.buffer,
+          ContentType: file.mimetype || "image/jpeg"
+        }));
+        uploadResults[i] = { objectName, originalName: file.originalname };
       }
     }
+
+    // ── Thumbnail worker (parallel, same pattern) ──
+    const thumbResults = new Array(thumbFiles.length).fill(null);
+    let thumbIndex = 0;
+    async function thumbWorker() {
+      while (true) {
+        const i = thumbIndex++;
+        if (i >= thumbFiles.length) break;
+        const file = thumbFiles[i];
+        const objectName = thumbPrefix + Date.now() + "_" + file.originalname;
+        await s3.send(new PutObjectCommand({
+          Bucket: bucketName,
+          Key: objectName,
+          Body: file.buffer,
+          ContentType: "image/jpeg"
+        }));
+        thumbResults[i] = objectName;
+      }
+    }
+
 
     try {
 
       // 1️⃣ Upload to MinIO in parallel
-      const workers = Array.from(
-        { length: MAX_CONCURRENT },
-        () => worker()
-      );
+      await Promise.all([
+        ...Array.from({ length: MAX_CONCURRENT }, () => mainWorker()),
+        ...Array.from({ length: MAX_CONCURRENT }, () => thumbWorker()),
+      ]);
 
-      await Promise.all(workers);
+      // 2️⃣ Build a map: originalName → thumbnailObjectName
+      //    Frontend sends thumb with same name (just _thumb suffix), so strip it to match
+
+      const thumbMap = new Map();
+      thumbFiles.forEach((f, i) => {
+        thumbMap.set(f.originalname, thumbResults[i]);
+      });
 
 
       // 2️⃣ Prepare DB values
@@ -299,31 +168,32 @@ exports.uploadFiles = (req, res) => {
         folder_id,
         user_id,
         null,
-        false
+        false,
+        thumbMap.get(file.originalName) ?? null
       ]));
 
-      const placeholders = values.map(() => "(?, ?, ?, ?, ?, ?)").join(",");
+      const placeholders = values.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(",");
 
       await pool.execute(
         `INSERT INTO photos
-         (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready)
+         (photo_url, photo_name, folder_id, uploaded_by, face_descriptor, descriptor_ready,thumbnail_url)
          VALUES ${placeholders}`,
         values.flat()
       );
 
-       if (is_ai_upload) {
-            await pool.execute('UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?', [false, folder_id]);
-            await pool.execute('UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?', [false, event_id]);
+      if (is_ai_upload) {
+        await pool.execute('UPDATE folders SET isFaceDescriptorReady = ? WHERE id = ?', [false, folder_id]);
+        await pool.execute('UPDATE events SET isFaceDescriptorReady = ? WHERE id = ?', [false, event_id]);
 
-             let inc = req.files.length;
-          if (photo_quality === 'high') inc *= 10;
-          else if (photo_quality === 'standard') inc *= 3;
+        let inc = mainFiles.length;
+        if (photo_quality === 'high') inc *= 10;
+        else if (photo_quality === 'standard') inc *= 3;
 
-          await pool.execute(
-            'UPDATE users SET used_photo_count = used_photo_count + ? WHERE id = ?',
-            [inc, user_id]
-          );
-       }
+        await pool.execute(
+          'UPDATE users SET used_photo_count = used_photo_count + ? WHERE id = ?',
+          [inc, user_id]
+        );
+      }
 
       res.status(200).json({
         success: true,
@@ -333,8 +203,8 @@ exports.uploadFiles = (req, res) => {
 
       if (is_from_camera && values.length > 0) {
         console.log('[Upload] Triggering external extraction for folder:', values);
-        
-          triggerExternalExtraction(folder_id, event_id, [{ url: getFileUrl(values[0][0]) }], '')
+
+        triggerExternalExtraction(folder_id, event_id, [{ url: getFileUrl(values[0][0]) }], '')
       }
 
     } catch (error) {
