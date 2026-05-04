@@ -1,48 +1,16 @@
-const { createAdapter } = require('@socket.io/redis-adapter');
-const Redis = require('ioredis');
-
-
-const redisUrl = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
-
-
-const pubClient = new Redis(redisUrl, {
-maxRetriesPerRequest: null,
-enableReadyCheck: false,
-});
-
-
-const subClient = pubClient.duplicate();
-
-
-// 🔴 REQUIRED HANDLERS
-pubClient.on('error', (err) => {
-console.error('Redis pub error:', err.message);
-});
-
-
-subClient.on('error', (err) => {
-console.error('Redis sub error:', err.message);
-});
-
-
-pubClient.on('connect', () => console.log('🟢 Redis pub connected'));
-subClient.on('connect', () => console.log('🟢 Redis sub connected'));
-
 require('dotenv').config();
 
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
 const restoreSessions = require("./utils/restoreSessions");
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
 const waClients = new Map();
-module.exports = waClients;
-http.globalAgent.maxSockets = Infinity;  // ← UNLIMITED
-http.globalAgent.maxFreeSockets = 200;
 
+http.globalAgent.maxSockets = Infinity;
+http.globalAgent.maxFreeSockets = 200;
 
 const scheduleAdminExpiryCheck = require('./utils/cron.js');
 
@@ -66,51 +34,13 @@ const app = express();
 const server = http.createServer(app);
 
 // --------------------------------------------------
-// Socket.IO
-// --------------------------------------------------
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  }
-});
-
-io.adapter(createAdapter(pubClient, subClient));
-
-// Expose io to controllers
-app.locals.io = io;
-
-// --------------------------------------------------
 // Middleware
 // --------------------------------------------------
 app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-// app.use(express.static('uploads'));
 app.use('/uploads', express.static('uploads'));
-app.use(
-  '/ai-uploads',
-  express.static(path.join(__dirname, 'ai-uploads'))
-);
-
-
-
-// --------------------------------------------------
-// Socket connection handling
-// --------------------------------------------------
-io.on('connection', (socket) => {
-  console.log('🔌 Socket connected:', socket.id);
-
-  socket.on('register', (userId) => {
-    if (!userId) return;
-    console.log(`📡 Socket joined room: user_${userId}`);
-    socket.join(`user_${userId}`);
-  });
-
-  socket.on('disconnect', (reason) => {
-    console.log(`🔌 Socket disconnected: ${socket.id} (${reason})`);
-  });
-});
+app.use('/ai-uploads', express.static(path.join(__dirname, 'ai-uploads')));
 
 // --------------------------------------------------
 // Routes
@@ -145,6 +75,6 @@ app.get('/health', (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, async () => {
-   await restoreSessions(waClients, io);
+  // await restoreSessions(waClients);
   console.log(`🚀 Server running on port ${PORT}`);
 });
