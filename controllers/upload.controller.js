@@ -8,6 +8,7 @@ const FormData = require('form-data');
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const { NodeHttpHandler } = require("@aws-sdk/node-http-handler");
 const http = require("http");  // ← http.Agent here
+const sharp = require('sharp');
 
 const s3 = new S3Client({
   region: "us-east-1",
@@ -80,7 +81,6 @@ exports.uploadFiles = (req, res) => {
       return res.status(400).json({ error: "No files uploaded" });
     }
 
-
     const {
       user_id,
       studio_name,
@@ -108,18 +108,41 @@ exports.uploadFiles = (req, res) => {
     const MAX_CONCURRENT = 5;
 
     let mainIndex = 0;
+    const isFromCamera = is_from_camera === true || is_from_camera === 'true';
     async function mainWorker() {
       while (true) {
         const i = mainIndex++;
         if (i >= mainFiles.length) break;
         const file = mainFiles[i];
+
+        const mainBuffer = isFromCamera
+          ? await compressImage(file.buffer, photo_quality)
+          : file.buffer;
+
+        const thumbBuffer = isFromCamera
+          ? await compressThumbnail(file.buffer)
+          : null;
+
         const objectName = prefix + Date.now() + "_" + file.originalname;
         await s3.send(new PutObjectCommand({
           Bucket: bucketName,
           Key: objectName,
-          Body: file.buffer,
+          Body: mainBuffer,
           ContentType: file.mimetype || "image/jpeg"
         }));
+
+        if (isFromCamera && thumbBuffer) {
+          const thumbObjectName = thumbPrefix + Date.now() + '_' + file.originalname;
+          await s3.send(new PutObjectCommand({
+            Bucket: bucketName,
+            Key: thumbObjectName,
+            Body: thumbBuffer,
+            ContentType: 'image/jpeg'
+          })); ``
+          thumbResults[i] = thumbObjectName;
+        }
+
+
         uploadResults[i] = { objectName, originalName: file.originalname };
       }
     }
@@ -149,7 +172,9 @@ exports.uploadFiles = (req, res) => {
       // 1️⃣ Upload to MinIO in parallel
       await Promise.all([
         ...Array.from({ length: MAX_CONCURRENT }, () => mainWorker()),
-        ...Array.from({ length: MAX_CONCURRENT }, () => thumbWorker()),
+        ...(!isFromCamera
+          ? Array.from({ length: MAX_CONCURRENT }, () => thumbWorker())
+          : []),
       ]);
 
       // 2️⃣ Build a map: originalName → thumbnailObjectName
@@ -162,14 +187,14 @@ exports.uploadFiles = (req, res) => {
 
 
       // 2️⃣ Prepare DB values
-      const values = uploadResults.map(file => ([
+      const values = uploadResults.map((file, i) => ([
         file.objectName,
         file.originalName,
         folder_id,
         user_id,
         null,
         false,
-        thumbMap.get(file.originalName) ?? null
+        isFromCamera ? (thumbResults[i] ?? null) : (thumbMap.get(file.originalName) ?? null)
       ]));
 
       const placeholders = values.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(",");
@@ -213,6 +238,32 @@ exports.uploadFiles = (req, res) => {
     }
   });
 };
+
+async function compressImage(buffer, quality = 'basic') {
+  let maxWidth, maxHeight, jpegQuality;
+
+  if (quality === 'high') {
+    maxWidth = 4096; maxHeight = 4096; jpegQuality = 95;
+  } else if (quality === 'standard') {
+    maxWidth = 3500; maxHeight = 3500; jpegQuality = 85;
+  } else {
+    maxWidth = 1920; maxHeight = 1920; jpegQuality = 82;
+  }
+
+  return sharp(buffer)
+    .rotate()
+    .resize(maxWidth, maxHeight, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: jpegQuality, mozjpeg: true })
+    .toBuffer();
+}
+
+async function compressThumbnail(buffer) {
+  return sharp(buffer)
+    .rotate()
+    .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 75, mozjpeg: true })
+    .toBuffer();
+}
 
 const getFileUrl = (filePath) => {
   const normalizedPath = filePath.replace(/\\/g, '/');
