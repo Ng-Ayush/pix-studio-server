@@ -247,7 +247,7 @@ async function compressImage(buffer, quality = 'basic') {
   } else if (quality === 'standard') {
     maxWidth = 3500; maxHeight = 3500; jpegQuality = 85;
   } else {
-    maxWidth = 2400; maxHeight = 2400; jpegQuality = 95;
+    maxWidth = 2400; maxHeight = 2400; jpegQuality = 96;
   }
 
   return sharp(buffer)
