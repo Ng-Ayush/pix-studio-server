@@ -83,6 +83,16 @@ exports.getPastPayments = async (req, res) => {
   }
 };
 
+exports.deletePastPaymentByInvoiceIdAndPaymentId = async (req, res) => {
+  try {
+    const { invoice_id, payment_id } = req.query;
+    const [rows] = await pool.execute('DELETE FROM invoice_payments WHERE invoice_id = ? AND id = ?', [invoice_id, payment_id]);
+    res.json({ message: "Invoices Payment deleted successfully", status: 200 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // READ BY ID
 exports.getInvoiceById = async (req, res) => {
   const { invoice_number } = req.params;

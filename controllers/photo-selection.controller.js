@@ -18,10 +18,10 @@ const upload = multer();
 
 exports.createEvent = async (req, res) => {
     try {
-        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false,need_customer_insta_follow = false, google_review_url = '', selected_template = '', photo_quality = '',event_date ='' } = req.body;
+        const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false, need_customer_insta_follow = false, google_review_url = '', selected_template = '', photo_quality = '', event_date = '' } = req.body;
         console.log(req.body);
 
-        const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number,need_customer_insta_follow, google_review_url, selected_template, photo_quality,event_date, req.user.id];
+        const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, need_customer_insta_follow, google_review_url, selected_template, photo_quality, event_date, req.user.id];
         const [result] = await pool.execute(
             'INSERT INTO events (event_name, customer_id, is_event_submitted, is_ai_upload,payment_id, browse_all_photo_ai, ai_cover_images,watermark,youtube_cover_url,need_customer_number,need_customer_insta_follow,google_review_url,selected_template,photo_quality,event_date, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             value
@@ -121,16 +121,16 @@ GROUP BY e.id
 exports.updateEvent = async (req, res) => {
     try {
         const { event_id } = req.params;
-        const { is_event_submitted, event_name, browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false,need_customer_insta_follow = false, google_review_url = '', selected_template = '', photo_quality = '',event_date ='' } = req.body;
+        const { is_event_submitted, event_name, browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false, need_customer_insta_follow = false, google_review_url = '', selected_template = '', photo_quality = '', event_date = '' } = req.body;
 
         let query = `UPDATE events SET is_event_submitted = ?, browse_all_photo_ai = ?,ai_cover_images = ?,watermark = ?, youtube_cover_url = ?,need_customer_number = ?,need_customer_insta_follow = ?,google_review_url = ?,selected_template = ?, photo_quality = ?,event_date = ? WHERE id = ?`;
-        let value = [is_event_submitted, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number,need_customer_insta_follow, google_review_url, selected_template, photo_quality,event_date, +event_id];
+        let value = [is_event_submitted, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, need_customer_insta_follow, google_review_url, selected_template, photo_quality, event_date, +event_id];
 
         console.log(value)
 
         if (event_name) {
             query = `UPDATE events SET is_event_submitted = ?, event_name = ?, browse_all_photo_ai = ?, ai_cover_images = ?,watermark = ?,youtube_cover_url = ?,need_customer_number = ?,need_customer_insta_follow = ?,google_review_url = ?,selected_template = ?, photo_quality = ?, event_date= ? WHERE id = ?`;
-            value = [is_event_submitted, event_name, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, need_customer_insta_follow, google_review_url, selected_template, photo_quality,event_date, +event_id];
+            value = [is_event_submitted, event_name, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, need_customer_insta_follow, google_review_url, selected_template, photo_quality, event_date, +event_id];
         }
 
         const [result] = await pool.execute(query, value);
@@ -179,7 +179,7 @@ exports.createNewFolder = async (req, res) => {
     try {
         const { event_id, folder_name } = req.body;
 
-         const [existing] = await pool.execute(
+        const [existing] = await pool.execute(
             `SELECT id FROM folders WHERE folder_name = ? AND event_id = ?`,
             [folder_name, event_id]
         );
@@ -193,7 +193,7 @@ exports.createNewFolder = async (req, res) => {
         }
 
         const [result] = await pool.execute(`INSERT INTO folders (folder_name, event_id) VALUES (?,?)`, [folder_name, event_id]);
-        res.send({ message: "Folder Created", status: 200, folder_id: result.insertId})
+        res.send({ message: "Folder Created", status: 200, folder_id: result.insertId })
 
     } catch (error) {
         res.send({ message: "Folder Fetched", data: result, status: 200 })
@@ -211,33 +211,6 @@ exports.updateFolder = async (req, res) => {
     }
     catch (error) {
         res.send({ message: 'Something went wrong', status: 400 });
-    }
-}
-
-exports.deleteFolder = async (req, res) => {
-    try {
-
-        const { id } = req.params;
-        const [result] = await pool.execute('DELETE FROM folders WHERE id = ?', [id]);
-        res.send({ message: 'Delete successfully', status: 200 });
-
-    }
-    catch (error) {
-        res.send({ message: 'Something went wrong', status: 400 });
-    }
-}
-
-exports.deleteEvent = async (req, res) => {
-    try {
-
-        const { id } = req.params;
-        const [paymentDel] = await pool.execute("DELETE FROM payments WHERE event_id = ?", [id]);
-        const [result] = await pool.execute('DELETE FROM events WHERE id = ?', [id]);
-        res.send({ message: 'Delete successfully', status: 200 });
-
-    }
-    catch (error) {
-        res.send({ message: 'Something went wrong', status: 400, error });
     }
 }
 
@@ -391,34 +364,6 @@ function extractFirebasePath(url) {
     }
 }
 
-exports.deletePhotos = async (req, res) => {
-    const photos = req.body.photos;
-    const { folder_id } = req.body;
-    if (!Array.isArray(photos) || photos.length === 0) {
-        return res.status(400).json({ message: 'Invalid photo data' });
-    }
-    const ids = photos.map(p => Number(p.id)).filter(Boolean);
-
-    if (!ids.length) {
-        return res.status(400).json({ message: 'Invalid ids' });
-    }
-
-    const placeholders = ids.map(() => '?').join(',');
-
-    try {
-        await pool.execute(
-            `DELETE FROM photos
-             WHERE folder_id = ?
-             AND id IN (${placeholders})`,
-            [folder_id, ...ids]
-        );
-
-        return res.send({ message: 'Photos deleted successfully', status: 200 });
-    } catch (err) {
-        console.error('Bulk deletion failed:', err);
-        return res.send({ message: 'Server error during deletion', status: 500 });
-    }
-};
 
 exports.verifyUniqueCode = async (req, res) => {
     try {
@@ -560,7 +505,7 @@ exports.getAllPhotosByEventId = async (req, res) => {
 
         const [result] = await pool.query(dataQuery, dataParams);
 
-        const formattedResult = result.map(row => ({...row, thumbnail_url: row.thumbnail_url && getFileUrl(row.thumbnail_url), photo_url: !row.photo_url?.includes("surajproductions-3f28b.firebasestorage.app") ? getFileUrl(row.photo_url) : row.photo_url}));
+        const formattedResult = result.map(row => ({ ...row, thumbnail_url: row.thumbnail_url && getFileUrl(row.thumbnail_url), photo_url: !row.photo_url?.includes("surajproductions-3f28b.firebasestorage.app") ? getFileUrl(row.photo_url) : row.photo_url }));
 
         res.send({
             message: 'Photos fetched successfully',
@@ -611,7 +556,7 @@ exports.getNewPhotos = async (req, res) => {
 
         const [result] = await pool.query(query, params);
 
-        const formattedResult = result.map(row => ({...row, photo_url: !row.photo_url?.includes("surajproductions-3f28b.firebasestorage.app") ? getFileUrl(row.photo_url) : row.photo_url}));
+        const formattedResult = result.map(row => ({ ...row, photo_url: !row.photo_url?.includes("surajproductions-3f28b.firebasestorage.app") ? getFileUrl(row.photo_url) : row.photo_url }));
 
 
         res.send({
@@ -909,7 +854,7 @@ exports.findPerson = async (req, res) => {
 
 
         const response = await axios.post(`${basePythonUrl}/find_person`, formData, { ...formData.getHeaders(), maxBodyLength: Infinity });
-       
+
         // Extract the actual response body
         const responseBody = response.data;
         const statusCode = response.data?.status;
@@ -1031,7 +976,7 @@ exports.reUploadFaceDescriptor = async (req, res) => {
         const response = {
             uploadedUrls: rows.map(row => ({
                 folder_id: row.folder_id,
-                url:  !row.url.includes("surajproductions-3f28b.firebasestorage.app") ? getFileUrl(row.url) : row.url,
+                url: !row.url.includes("surajproductions-3f28b.firebasestorage.app") ? getFileUrl(row.url) : row.url,
                 name: row.name
             })),
             uploaded_by: rows[0].uploaded_by,

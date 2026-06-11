@@ -5,7 +5,7 @@ const pool = require('../db_config/db.js');
 const axios = require('axios');
 const FormData = require('form-data');
 // const Minio = require('minio');
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, PutObjectCommand, DeleteObjectsCommand } = require("@aws-sdk/client-s3");
 const { NodeHttpHandler } = require("@aws-sdk/node-http-handler");
 const http = require("http");  // ← http.Agent here
 const sharp = require('sharp');
@@ -469,3 +469,159 @@ async function downloadImage(url, filePath) {
     clearTimeout(timeout);
   }
 }
+
+function extractObjectKey(url) {
+  if (!url) return null;
+
+  // ✅ If it's already just a path/key (no http), return as-is
+  if (!url.startsWith('http')) return url;
+
+  // ✅ If it's the MinIO download URL format, extract the prefix param
+  // e.g. https://tn3.mieuxcloud.com:9443/api/v1/buckets/akash/objects/download?prefix=user_28/...
+  if (url.includes('?prefix=')) {
+    return decodeURIComponent(url.split('?prefix=')[1]);
+  }
+
+  // ✅ Standard S3/MinIO URL — strip bucket from pathname
+  const urlObj = new URL(url);
+  return decodeURIComponent(urlObj.pathname.replace(`/${bucketName}/`, ''));
+}
+
+async function deleteFromMinIO(objectKeys) {
+  if (!objectKeys.length) return;
+
+  // S3/MinIO allows max 1000 per request
+  const chunks = [];
+  for (let i = 0; i < objectKeys.length; i += 1000) {
+    chunks.push(objectKeys.slice(i, i + 1000));
+  }
+
+  await Promise.all(chunks.map(chunk =>
+    s3.send(new DeleteObjectsCommand({
+      Bucket: bucketName,
+      Delete: {
+        Objects: chunk.map(Key => ({ Key })),
+        Quiet: true // don't return success list, only errors
+      }
+    }))
+  ));
+}
+
+exports.deletePhotos = async (req, res) => {
+  const photos = req.body.photos;
+  const { folder_id } = req.body;
+
+  if (!Array.isArray(photos) || photos.length === 0) {
+    return res.status(400).json({ message: 'Invalid photo data' });
+  }
+
+  const ids = photos.map(p => Number(p.id)).filter(Boolean);
+
+  if (!ids.length) {
+    return res.status(400).json({ message: 'Invalid ids' });
+  }
+
+  try {
+    const placeholders = ids.map(() => '?').join(',');
+
+    // ✅ Fetch MinIO keys before deleting from DB
+    const [rows] = await pool.execute(
+      `SELECT photo_url, thumbnail_url FROM photos
+       WHERE folder_id = ? AND id IN (${placeholders})`,
+      [folder_id, ...ids]
+    );
+
+    // ✅ Extract keys and delete from MinIO
+    const keys = rows.flatMap(row => [
+      row.photo_url ? extractObjectKey(row.photo_url) : null,
+      row.thumbnail_url ? extractObjectKey(row.thumbnail_url) : null
+    ]).filter(Boolean);
+
+    await deleteFromMinIO(keys);
+
+    // ✅ Then delete from DB
+    await pool.execute(
+      `DELETE FROM photos WHERE folder_id = ? AND id IN (${placeholders})`,
+      [folder_id, ...ids]
+    );
+
+    return res.send({ message: 'Photos deleted successfully', status: 200 });
+  } catch (err) {
+    console.error('Bulk deletion failed:', err);
+    return res.send({ message: 'Server error during deletion', status: 500 });
+  }
+};
+
+exports.deleteFolder = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // ✅ Fetch all photos in folder before deleting
+    const [photos] = await pool.execute(
+      'SELECT photo_url, thumbnail_url FROM photos WHERE folder_id = ?',
+      [id]
+    );
+
+    const keys = photos.flatMap(row => [
+      extractObjectKey(row.photo_url),
+      extractObjectKey(row.thumbnail_url)
+    ]).filter(Boolean);
+
+    await deleteFromMinIO(keys);
+
+    // ✅ DB cascade — photos first, then folder
+    await pool.execute('DELETE FROM photos WHERE folder_id = ?', [id]);
+    await pool.execute('DELETE FROM folders WHERE id = ?', [id]);
+
+    res.send({ message: 'Folder deleted successfully', status: 200 });
+  } catch (error) {
+    console.error('Folder deletion failed:', error);
+    res.send({ message: 'Something went wrong', status: 400, error });
+  }
+};
+
+exports.deleteEvent = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // ✅ Fetch all photos across all folders in this event
+    const [photos] = await pool.execute(
+      `SELECT p.photo_url, p.thumbnail_url
+       FROM photos p
+       INNER JOIN folders f ON p.folder_id = f.id
+       WHERE f.event_id = ?`,
+      [id]
+    );
+
+    const keys = photos.flatMap(row => [
+      extractObjectKey(row.photo_url),
+      extractObjectKey(row.thumbnail_url)
+    ]).filter(Boolean);
+
+    await deleteFromMinIO(keys);
+
+    // ✅ DB cascade — photos → folders → payments → event
+    const [folders] = await pool.execute(
+      'SELECT id FROM folders WHERE event_id = ?', [id]
+    );
+    const folderIds = folders.map(f => f.id);
+
+    if (folderIds.length) {
+      const placeholders = folderIds.map(() => '?').join(',');
+      await pool.execute(
+        `DELETE FROM photos WHERE folder_id IN (${placeholders})`, folderIds
+      );
+      await pool.execute(
+        `DELETE FROM folders WHERE id IN (${placeholders})`, folderIds
+      );
+    }
+
+    await pool.execute('DELETE FROM payments WHERE event_id = ?', [id]);
+    await pool.execute('DELETE FROM events WHERE id = ?', [id]);
+
+    res.send({ message: 'Event deleted successfully', status: 200 });
+  } catch (error) {
+    console.error('Event deletion failed:', error);
+    res.send({ message: 'Something went wrong', status: 400, error });
+  }
+};

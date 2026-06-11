@@ -18,10 +18,7 @@ router.post("/addAiGuest",photoSelectionController.addAiGuest);
 router.get("/getUploadedPhotosByFolderId/:folder_id", photoSelectionController.getUploadedPhotosByFolderId);
 router.post("/createNewFolder", photoSelectionController.createNewFolder);
 router.put("/updateFolder/:id",authMiddleware, photoSelectionController.updateFolder);
-router.delete("/deleteFolder/:id",authMiddleware, photoSelectionController.deleteFolder);
-router.delete("/deleteEvent/:id",authMiddleware, photoSelectionController.deleteEvent);
 router.post("/uploadPhotos",authMiddleware, photoSelectionController.uploadPhotos);
-router.post("/deletePhotos",authMiddleware,photoSelectionController.deletePhotos);
 router.post("/verifyUniqueCode",photoSelectionController.verifyUniqueCode)
 router.post("/getFolderListByCustomerCode",photoSelectionController.getFolderListByCustomerCode)
 router.post("/updatePhotoStatus",photoSelectionController.updatePhotoStatus)
