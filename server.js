@@ -61,6 +61,7 @@ app.use('/api/mystudio/customer-request', require('./routes/customerRequestRoute
 app.use('/api/mystudio/manage-profile', require('./routes/manageProfileRoute.js'));
 app.use('/api/mystudio/calling', require('./routes/calling.routes.js'));
 app.use('/api/mystudio/photos', require('./routes/upload.routes.js'));
+app.use('/api/mystudio/marketplace', require('./routes/marketplace.routes.js'));
 
 // --------------------------------------------------
 // Health check

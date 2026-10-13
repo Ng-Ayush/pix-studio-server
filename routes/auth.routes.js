@@ -5,6 +5,7 @@ const userController = require('../controllers/user.controller');
 
 router.post('/register', authController.register);
 router.post('/login', authController.login);
+router.post('/google', userController.googleLogin);
 
 router.post("/getOTPForPinUser",userController.verifyPinUser);
 

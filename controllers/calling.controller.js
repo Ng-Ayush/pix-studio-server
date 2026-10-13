@@ -18,7 +18,6 @@ exports.addAgent = async (req, res) => {
         );
 
         let extension_number;
-        console.log(lastExtension);
         
         if (lastExtension[0] && lastExtension[0].extension_number) {
             const lastExtensionNumber = parseInt(lastExtension[0].extension_number);

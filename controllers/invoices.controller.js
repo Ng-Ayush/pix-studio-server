@@ -379,8 +379,6 @@ exports.sendBulkMessage = async (req, res) => {
     for (const number of numbers) {
       const chatId = `${number}@c.us`;
 
-      console.log("CHAT ID +++++++++++",chatId);
-      
       try {
         await client.sendText(chatId, message);
         results.push({ number, success: true });

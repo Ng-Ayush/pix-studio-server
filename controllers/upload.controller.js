@@ -73,9 +73,7 @@ exports.uploadFiles = (req, res) => {
     }
 
     const mainFiles = req.files?.['files'] || [];
-    const thumbFiles = req.files?.['thumbnail_files'] || [];  // ← s
-    console.log(thumbFiles);
-
+    const thumbFiles = req.files?.['thumbnail_files'] || [];
 
     if (!mainFiles?.length) {
       return res.status(400).json({ error: "No files uploaded" });
@@ -303,9 +301,6 @@ async function triggerExternalExtraction(folder_id, event_id, uploadedUrls, uplo
       formData.append('wedding_folder_id', ai_folder_id);
     }
 
-    console.log('[Extraction] Triggering for folder:', ai_folder_id);
-
-    // ✅ FIXED: Correct axios config
     const response = await axios.post(
       `${basePythonUrl}/upload_urls`,
       formData,

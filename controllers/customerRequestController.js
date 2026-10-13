@@ -13,7 +13,6 @@ exports.getAllRequests = async (req, res) => {
 exports.resolved = async (req, res) => {
     try {
         const ticket_id = req.params.id;
-        console.log(ticket_id);
 
         await pool.execute('UPDATE customer_request SET status = 1 WHERE ticket_id = ?', [ticket_id]);
 
@@ -42,7 +41,6 @@ exports.updateRequest = async (req, res) => {
     try {
         let { customer_name, priority, phone_number } = req.body;
         const ticket_id = req.body.id;
-        console.log(req.body);
 
         await pool.execute(
             'UPDATE customer_request SET customer_name = ?, priority = ?, phone_number = ?  WHERE ticket_id = ?',

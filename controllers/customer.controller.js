@@ -72,7 +72,6 @@ exports.searchCustomer = async (req, res) => {
     try {
         const { name } = req.params;
         const user_id = req.user.id;
-        console.log(name);
 
         const query = `SELECT cus.*, (SELECT COUNT(*) FROM events WHERE customer_id = cus.id) AS events FROM customers cus WHERE name LIKE '%${name}%' AND created_by = ? ORDER BY id DESC`;
         const [customer] = await pool.execute(query, [user_id]);

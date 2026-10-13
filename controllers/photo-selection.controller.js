@@ -19,7 +19,6 @@ const upload = multer();
 exports.createEvent = async (req, res) => {
     try {
         const { event_name, customer_id, is_event_submitted, is_ai_upload, quality, razorpay_payment_id = '', browse_all_photo_ai = false, ai_cover_images = JSON.stringify([]), watermark = JSON.stringify({}), youtube_cover_url = '', need_customer_number = false, need_customer_insta_follow = false, google_review_url = '', selected_template = '', photo_quality = '', event_date = '' } = req.body;
-        console.log(req.body);
 
         const value = [event_name, customer_id, is_event_submitted, is_ai_upload, razorpay_payment_id, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, need_customer_insta_follow, google_review_url, selected_template, photo_quality, event_date, req.user.id];
         const [result] = await pool.execute(
@@ -41,8 +40,6 @@ exports.createEvent = async (req, res) => {
 };
 
 exports.getAllEvents = async (req, res) => {
-
-    console.log("USER ID ", req.user.id);
 
 
     try {
@@ -125,8 +122,6 @@ exports.updateEvent = async (req, res) => {
 
         let query = `UPDATE events SET is_event_submitted = ?, browse_all_photo_ai = ?,ai_cover_images = ?,watermark = ?, youtube_cover_url = ?,need_customer_number = ?,need_customer_insta_follow = ?,google_review_url = ?,selected_template = ?, photo_quality = ?,event_date = ? WHERE id = ?`;
         let value = [is_event_submitted, browse_all_photo_ai, ai_cover_images, watermark, youtube_cover_url, need_customer_number, need_customer_insta_follow, google_review_url, selected_template, photo_quality, event_date, +event_id];
-
-        console.log(value)
 
         if (event_name) {
             query = `UPDATE events SET is_event_submitted = ?, event_name = ?, browse_all_photo_ai = ?, ai_cover_images = ?,watermark = ?,youtube_cover_url = ?,need_customer_number = ?,need_customer_insta_follow = ?,google_review_url = ?,selected_template = ?, photo_quality = ?, event_date= ? WHERE id = ?`;
@@ -239,7 +234,6 @@ exports.getEventById = async (req, res) => {
 exports.addAiGuest = async (req, res) => {
     try {
         const { event_id, guest_name, guest_phone, created_by, customer_unique_id = '', image_url = '' } = req.body;
-        console.log(req.body);
         const [result] = await pool.execute(`INSERT INTO ai_guests (event_id,guest_name,guest_phone,created_by,customer_unique_id,image_url) VALUES (?,?,?,?,?,?)`, [event_id, guest_name, guest_phone, created_by, customer_unique_id, image_url]);
         res.send({ message: "AI Guest Added", data: result, status: 200 })
 
@@ -323,7 +317,6 @@ WHERE f.id = ?;`
 
     } catch (error) {
         console.log(error);
-
         res.send({ message: 'Something went wrong', status: 400 });
     }
 }
@@ -999,3 +992,12 @@ function getFileUrl(path) {
     const normalizedPath = path.replace(/\\/g, '/');
     return `${baseImgUrl}${normalizedPath}`;
 }
+
+exports.getGlobalInstaStatus = async (req, res) => {
+    try {
+        const [rows] = await pool.execute('SELECT value FROM app_settings WHERE config_key = ?', ['follow_admin_insta']);
+        res.send({ message: 'Global Instagram status fetched successfully', data: rows[0], status: 200 });
+    } catch (err) {
+        res.send({ error: 'Failed to fetch Instagram status', message: err.message, status: 500 });
+    }
+};

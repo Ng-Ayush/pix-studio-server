@@ -24,7 +24,6 @@ module.exports = async (req, res, next) => {
         if (!user) {
             return res.status(401).send({ error: 'User not found.' });
         }
-        console.log("user.status",user.status);
         
          if (!user.status) {
             return res.status(403).send({

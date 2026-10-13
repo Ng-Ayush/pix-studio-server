@@ -137,7 +137,6 @@ exports.getDynamicImageUrl = async (req, res) => {
 
 exports.insertImages = async (req, res) => {
     const { images } = req.body;
-    console.log(images);
 
     try {
         const query = 'INSERT INTO dynamic_images (image_url) VALUES ?';
@@ -146,7 +145,6 @@ exports.insertImages = async (req, res) => {
         const values = images.map((url) => url ? [url] : '');
 
         const [result] = await pool.query(query, [values]);
-        console.log(`Inserted ${result.affectedRows} images successfully.`);
         res.send({ message: 'Images inserted successfully', status: 200 });
     } catch (err) {
         res.status(500).send({ error: 'Failed to insert Image', err: err });
@@ -217,6 +215,16 @@ exports.togglePromocodeStatus = async (req, res) => {
     }
 };
 
+exports.toggleGlobalInsta = async (req, res) => {
+    try {
+        const { value } = req.body;
+        await pool.execute('UPDATE app_settings SET value = ? WHERE config_key = ?', [value, 'follow_admin_insta']);
+        res.send({ message: 'Global Instagram status updated successfully', status: 200 });
+    } catch (err) {
+        res.send({ error: 'Failed to update Instagram status', message: err.message, status: 500 });
+    }
+};
+
 async function insertGlobalInvoiceItems(userId) {
     return new Promise(async (resolve, reject) => {
 
@@ -238,7 +246,6 @@ async function insertGlobalInvoiceItems(userId) {
                 INSERT INTO invoice_items 
                     (item_name, invoice_id, description, sale_price, quantity, location, booking_date, status, created_by)
                 VALUES ?`;
-            console.log(query, values);
 
             // Use pool.query for bulk inserts with VALUES ?
             const [result] = await pool.query(query, [values]);
@@ -249,3 +256,5 @@ async function insertGlobalInvoiceItems(userId) {
         }
     });
 }
+
+exports.insertGlobalInvoiceItems = insertGlobalInvoiceItems;
