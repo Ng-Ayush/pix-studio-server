@@ -211,13 +211,16 @@ exports.googleLogin = async (req, res) => {
 
             const pin = await generateUniqueGooglePin();
             const brand = req.header('Brand') || req.header('brand') || req.header('BRAND') || null;
+            const trialExpiresOn = new Date();
+            trialExpiresOn.setUTCDate(trialExpiresOn.getUTCDate() + 7);
+            const accessExpiresOn = trialExpiresOn.toISOString().slice(0, 10);
             let createdUserId;
             try {
                 const [result] = await pool.execute(
                     `INSERT INTO users
                         (studio_name, email, phone_number, pin, access_expires_on, allowed_photos_quantity, brand)
                      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                    [name, verifiedEmail, '', pin, new Date(new Date().setDate(new Date().getDate() + 7)).toISOString(), 100, brand]
+                    [name, verifiedEmail, '', pin, accessExpiresOn, 100, brand]
                 );
                 createdUserId = result.insertId;
             } catch (error) {
