@@ -62,6 +62,7 @@ app.use('/api/mystudio/manage-profile', require('./routes/manageProfileRoute.js'
 app.use('/api/mystudio/calling', require('./routes/calling.routes.js'));
 app.use('/api/mystudio/photos', require('./routes/upload.routes.js'));
 app.use('/api/mystudio/marketplace', require('./routes/marketplace.routes.js'));
+app.use('/api/mystudio/cloud-share', require('./routes/cloud-share.routes.js'));
 
 // --------------------------------------------------
 // Health check
@@ -75,7 +76,29 @@ app.get('/health', (req, res) => {
 // --------------------------------------------------
 const PORT = process.env.PORT || 3000;
 
-server.listen(PORT, async () => {
-  // await restoreSessions(waClients);
-  console.log(`🚀 Server running on port ${PORT}`);
+async function startServer() {
+  const { Server: TrackerServer } = await import('bittorrent-tracker');
+  const trackerServer = new TrackerServer({
+    udp: false,
+    http: false,
+    ws: { server },
+    stats: false
+  });
+
+  trackerServer.on('error', (error) => {
+    console.error('[CloudShare tracker error]', error);
+  });
+  trackerServer.on('warning', (warning) => {
+    console.warn('[CloudShare tracker warning]', warning);
+  });
+
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log('[CloudShare] WebSocket tracker attached');
+  });
+}
+
+startServer().catch((error) => {
+  console.error('[CloudShare] Failed to start the WebSocket tracker', error);
+  process.exitCode = 1;
 });
