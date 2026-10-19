@@ -155,11 +155,17 @@ exports.getPublicShare = async (req, res) => {
 
     try {
         const [rows] = await pool.execute(
-            `SELECT share_id AS shareId, info_hash AS infoHash, file_name AS name,
-                    size_bytes AS sizeBytes, download_count AS downloadCount,
-                    status, created_at AS createdAt
+            `SELECT cloud_shares.share_id AS shareId, cloud_shares.info_hash AS infoHash,
+                    cloud_shares.file_name AS name, cloud_shares.size_bytes AS sizeBytes,
+                    cloud_shares.download_count AS downloadCount,
+                    cloud_shares.status AS status, cloud_shares.created_at AS createdAt,
+                    users.studio_name AS studioName, users.studio_icon AS studioIcon,
+                    users.phone_number AS phoneNumber, users.address AS address,
+                    users.instagram_url AS instagramUrl, users.facebook_url AS facebookUrl,
+                    users.youtube_url AS youtubeUrl
              FROM cloud_shares
-             WHERE share_id = ?`,
+             INNER JOIN users ON users.id = cloud_shares.user_id
+             WHERE cloud_shares.share_id = ?`,
             [shareId]
         );
         if (rows.length === 0) {
