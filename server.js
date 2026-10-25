@@ -82,8 +82,12 @@ async function startServer() {
     udp: false,
     http: false,
     ws: { server },
-    stats: false
+    stats: false,
+    interval: 30 * 1000
   });
+
+  trackerServer.on('start', (addr, p) =>
+  console.log('[tracker]', Buffer.from(p.info_hash, 'binary').toString('hex'), p.event));
 
   trackerServer.on('error', (error) => {
     console.error('[CloudShare tracker error]', error);
