@@ -44,6 +44,55 @@ exports.fetchSalesAndPendingGraphData = async (req, res) => {
     }
 };
 
+exports.fetchBillingSummary = async (req, res) => {
+    try {
+        const query = `
+            SELECT
+                COALESCE(SUM(CASE
+                    WHEN invoice_type = 'sale'
+                        AND invoice_date >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')
+                        AND invoice_date < DATE_ADD(DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
+                    THEN total ELSE 0
+                END), 0) AS monthlySales,
+                COALESCE(SUM(CASE
+                    WHEN invoice_type = 'sale' AND balance_left > 0
+                    THEN balance_left ELSE 0
+                END), 0) AS pendingClientDues,
+                COUNT(DISTINCT CASE
+                    WHEN invoice_type = 'sale' AND balance_left > 0 THEN party_id
+                END) AS pendingClientCount,
+                COALESCE(SUM(CASE
+                    WHEN invoice_type = 'sale' THEN GREATEST(total - balance_left, 0) ELSE 0
+                END), 0) AS income,
+                COALESCE(SUM(CASE
+                    WHEN invoice_type = 'purchase' THEN GREATEST(total - balance_left, 0) ELSE 0
+                END), 0) AS expenses
+            FROM invoices
+            WHERE created_by = ?
+        `;
+        const [rows] = await pool.execute(query, [req.user.id]);
+        const summary = rows[0];
+        const income = Number(summary.income);
+        const expenses = Number(summary.expenses);
+
+        res.send({
+            message: 'Dashboard billing summary fetched successfully',
+            data: {
+                monthlySales: Number(summary.monthlySales),
+                pendingClientDues: Number(summary.pendingClientDues),
+                pendingClientCount: Number(summary.pendingClientCount),
+                income,
+                expenses,
+                netProfit: income - expenses,
+            },
+            status: 200,
+        });
+    } catch (error) {
+        console.error('Error fetching dashboard billing summary:', error);
+        res.status(500).send({ error: 'Failed to fetch dashboard billing summary' });
+    }
+};
+
 exports.getCalendarEvents = async (req, res) => {
     try {
         const sql = `

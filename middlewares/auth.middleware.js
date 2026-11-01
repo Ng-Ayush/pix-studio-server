@@ -35,6 +35,7 @@ module.exports = async (req, res, next) => {
         if (user.access_expires_on) {
             const now = new Date();
             const expiryDate = new Date(user.access_expires_on);
+            expiryDate.setHours(23, 59, 59, 999);
 
             if (now > expiryDate) {
                 return res.status(403).send({

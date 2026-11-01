@@ -25,11 +25,21 @@ exports.getAllUsers = async (req, res) => {
         const { status } = req.query; // true / false
 
         let query = `SELECT * FROM users`;
-        let params = [];
+        const conditions = [];
+        const params = [];
+
+        if (req.header('brand') === 'ph') {
+            conditions.push('brand = ?');
+            params.push('ph');
+        }
 
         if (status !== undefined) {
-            query += ` WHERE status = ?`;
+            conditions.push('status = ?');
             params.push(status === 'true' ? 1 : 0);
+        }
+
+        if (conditions.length > 0) {
+            query += ` WHERE ${conditions.join(' AND ')}`;
         }
 
         query += ` ORDER BY id DESC`;
