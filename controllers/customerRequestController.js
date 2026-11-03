@@ -2,8 +2,9 @@ const pool = require('../db_config/db.js');
 
 exports.getAllRequests = async (req, res) => {
     try {
-        const query = `SELECT * FROM customer_request ORDER BY ticket_id DESC`
-        const [customers] = await pool.execute(query);
+        const brand = req.get('brand') === 'ph' ? 'ph' : 'mystudio';
+        const query = `SELECT * FROM customer_request WHERE brand = ? ORDER BY ticket_id DESC`;
+        const [customers] = await pool.execute(query, [brand]);
         res.send({ message: "users fetched successfully", data: customers, status: 200 });
     } catch (err) {
         res.status(500).send({ error: 'Failed to fetch users' });
@@ -55,8 +56,12 @@ exports.updateRequest = async (req, res) => {
 
 exports.createTicket = async (req, res) => {
     try {
-        const { customer_name, priority= 'medium', phone_number, description, customer_unique_id } = req.body;
-        await pool.execute('INSERT INTO customer_request (customer_name, priority, phone_number,description,customer_unique_id) VALUES (?, ?, ?, ?, ?)', [customer_name, priority, phone_number, description, customer_unique_id]);
+        const { customer_name, priority = 'medium', phone_number, description, customer_unique_id } = req.body;
+        const brand = req.get('brand') === 'ph' ? 'ph' : 'mystudio';
+        await pool.execute(
+            'INSERT INTO customer_request (customer_name, priority, phone_number, description, customer_unique_id, brand) VALUES (?, ?, ?, ?, ?, ?)',
+            [customer_name, priority, phone_number, description, customer_unique_id, brand]
+        );
         res.send({ message: 'Ticket created successfully', status: 200 });
     } catch (err) {
         res.status(500).send({ error: 'Failed to create ticket', err: err });
