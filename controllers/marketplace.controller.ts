@@ -1,7 +1,7 @@
 // @ts-nocheck
 const pool = require('../db_config/db.js');
 
-const editableFields = ['listing_type','phone_number','city', 'title', 'price', 'duration', 'cover_image_url', 'description'];
+const editableFields = ['listing_type','phone_number','city', 'title', 'price', 'duration', 'cover_image_url', 'description', 'image_urls', 'video_urls'];
 
 function getErrorMessage(err) {
     return err instanceof Error ? err.message : String(err);
@@ -11,12 +11,43 @@ function isValidPrice(price) {
     return price === null || (Number.isFinite(Number(price)) && Number(price) >= 0);
 }
 
+function serializeMediaUrls(value, fieldName) {
+    if (value == null) return JSON.stringify([]);
+    if (!Array.isArray(value) || value.length > 30 || value.some(url => typeof url !== 'string')) {
+        throw new Error(`${fieldName} must be an array of up to 30 URLs`);
+    }
+    const urls = value.map(url => url.trim()).filter(Boolean);
+    if (urls.some(url => url.length > 2048)) {
+        throw new Error(`${fieldName} URLs must not exceed 2048 characters`);
+    }
+    return JSON.stringify(urls);
+}
+
+function parseMediaUrls(value) {
+    if (Array.isArray(value)) return value;
+    if (typeof value !== 'string') return [];
+    try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+function parseListingMedia(rows) {
+    return rows.map(row => ({
+        ...row,
+        image_urls: parseMediaUrls(row.image_urls),
+        video_urls: parseMediaUrls(row.video_urls)
+    }));
+}
+
 exports.getAllListing = async (req, res) => {
     try {
         const [rows] = await pool.execute(
             'SELECT * FROM marketplace_listings WHERE is_active = 1 AND deleted_at IS NULL ORDER BY created_at DESC'
         );
-        return res.send({ message: 'Marketplace listings fetched successfully', data: rows, status: 200 });
+        return res.send({ message: 'Marketplace listings fetched successfully', data: parseListingMedia(rows), status: 200 });
     } catch (err) {
         console.error(err);
         return res.status(500).send({ error: 'Failed to fetch marketplace listings', message: getErrorMessage(err), status: 500 });
@@ -33,20 +64,41 @@ exports.create = async (req, res) => {
             return res.status(400).send({ error: 'price must be a non-negative number or null', status: 400 });
         }
 
+        let imageUrls;
+        let videoUrls;
+        try {
+            imageUrls = serializeMediaUrls(req.body.image_urls, 'image_urls');
+            videoUrls = serializeMediaUrls(req.body.video_urls, 'video_urls');
+        } catch (validationError) {
+            return res.status(400).send({ error: validationError.message, status: 400 });
+        }
+
         const [result] = await pool.execute(
             `INSERT INTO marketplace_listings
-                (user_id, listing_type, phone_number, city, title, price, duration, cover_image_url, description)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [req.user.id, listing_type.trim(), phone_number, city, title.trim(), price, duration, cover_image_url, description.trim()]
+                (user_id, listing_type, phone_number, city, title, price, duration, cover_image_url, description, image_urls, video_urls)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [req.user.id, listing_type.trim(), phone_number, city, title.trim(), price, duration, cover_image_url, description.trim(), imageUrls, videoUrls]
         );
         const [rows] = await pool.execute(
             'SELECT * FROM marketplace_listings WHERE id = ? AND user_id = ?',
             [result.insertId, req.user.id]
         );
-        return res.status(201).send({ message: 'Marketplace listing created successfully', data: rows[0], status: 201 });
+        return res.status(201).send({ message: 'Marketplace listing created successfully', data: parseListingMedia(rows)[0], status: 201 });
     } catch (err) {
         console.error(err);
         return res.status(500).send({ error: 'Failed to create marketplace listing', message: getErrorMessage(err), status: 500 });
+    }
+};
+
+exports.getAllListingCountByUserId = async (req, res) => {
+    try {
+        const userId = Number(req.params.userId);
+        const query = 'SELECT COUNT(*) AS count FROM marketplace_listings WHERE user_id = ? AND deleted_at IS NULL';
+        const [rows] = await pool.execute(query, [userId]);
+        return res.send({ message: 'User marketplace listings count fetched successfully', data: rows[0], status: 200 });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ error: 'Failed to fetch user marketplace listings count', message: getErrorMessage(err), status: 500 });
     }
 };
 
@@ -64,7 +116,7 @@ exports.getListingByUserId = async (req, res) => {
             'SELECT * FROM marketplace_listings WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at DESC',
             [userId]
         );
-        return res.send({ message: 'User marketplace listings fetched successfully', data: rows, status: 200 });
+        return res.send({ message: 'User marketplace listings fetched successfully', data: parseListingMedia(rows), status: 200 });
     } catch (err) {
         console.error(err);
         return res.status(500).send({ error: 'Failed to fetch user marketplace listings', message: getErrorMessage(err), status: 500 });
@@ -78,13 +130,22 @@ exports.editListingByUserId = async (req, res) => {
             return res.status(400).send({ error: 'A valid listingId is required', status: 400 });
         }
 
-        const updates = Object.entries(req.body).filter(([field]) => editableFields.includes(field));
+        let updates = Object.entries(req.body).filter(([field]) => editableFields.includes(field));
         if (!updates.length) {
             return res.status(400).send({ error: 'At least one editable listing field is required', status: 400 });
         }
         const price = updates.find(([field]) => field === 'price');
         if (price && !isValidPrice(price[1])) {
             return res.status(400).send({ error: 'price must be a non-negative number or null', status: 400 });
+        }
+
+        try {
+            updates = updates.map(([field, value]) => [
+                field,
+                field === 'image_urls' || field === 'video_urls' ? serializeMediaUrls(value, field) : value
+            ]);
+        } catch (validationError) {
+            return res.status(400).send({ error: validationError.message, status: 400 });
         }
 
         const setClause = updates.map(([field]) => `\`${field}\` = ?`).join(', ');
@@ -100,7 +161,7 @@ exports.editListingByUserId = async (req, res) => {
             'SELECT * FROM marketplace_listings WHERE id = ? AND user_id = ?',
             [listingId, req.user.id]
         );
-        return res.send({ message: 'Marketplace listing updated successfully', data: rows[0], status: 200 });
+        return res.send({ message: 'Marketplace listing updated successfully', data: parseListingMedia(rows)[0], status: 200 });
     } catch (err) {
         console.error(err);
         return res.status(500).send({ error: 'Failed to update marketplace listing', message: getErrorMessage(err), status: 500 });

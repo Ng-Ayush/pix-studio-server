@@ -4,6 +4,7 @@ const fs = require('fs');
 const pool = require('../db_config/db.js');
 const axios = require('axios');
 const FormData = require('form-data');
+const { randomUUID } = require('crypto');
 // const Minio = require('minio');
 const { S3Client, PutObjectCommand, DeleteObjectsCommand } = require("@aws-sdk/client-s3");
 const { NodeHttpHandler } = require("@aws-sdk/node-http-handler");
@@ -63,6 +64,16 @@ const uploadFields = upload.fields([
   { name: 'files', maxCount: 100 },
   { name: 'thumbnail_files', maxCount: 100 }
 ]);
+
+const marketplaceImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Only JPEG, PNG, and WebP images are allowed'));
+  }
+}).single('image');
 
 exports.uploadFiles = (req, res) => {
 
@@ -619,4 +630,40 @@ exports.deleteEvent = async (req, res) => {
     console.error('Event deletion failed:', error);
     res.send({ message: 'Something went wrong', status: 400, error });
   }
+};
+
+exports.uploadMarketplaceImage = (req, res) => {
+  marketplaceImageUpload(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message, status: 400 });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'An image file is required', status: 400 });
+    }
+
+    const extensionByMimeType = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp'
+    };
+    const objectName = `marketplace/user_${safe(req.user.id)}/${randomUUID()}${extensionByMimeType[req.file.mimetype]}`;
+
+    try {
+      await s3.send(new PutObjectCommand({
+        Bucket: bucketName,
+        Key: objectName,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype
+      }));
+
+      return res.status(201).json({
+        success: true,
+        status: 201,
+        data: { url: getFileUrl(objectName) }
+      });
+    } catch (uploadError) {
+      console.error('[Marketplace image upload] Failed:', uploadError);
+      return res.status(500).json({ error: 'Unable to upload the marketplace image', status: 500 });
+    }
+  });
 };

@@ -4,6 +4,7 @@ const marketplaceController = require('../controllers/marketplace.controller.ts'
 const authMiddleware = require('../middlewares/auth.middleware.js');
 
 router.get('/getAllListing', authMiddleware, marketplaceController.getAllListing);
+router.get('/getAllListingCountByUserId/:userId', authMiddleware, marketplaceController.getAllListingCountByUserId);
 router.post('/create', authMiddleware, marketplaceController.create);
 router.get('/getListingByUserId/:userId', authMiddleware, marketplaceController.getListingByUserId);
 router.put('/editListingByUserId/:listingId', authMiddleware, marketplaceController.editListingByUserId);

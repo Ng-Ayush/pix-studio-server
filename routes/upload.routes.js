@@ -3,6 +3,7 @@ const router = express.Router();
 
 const {
   uploadFiles,
+  uploadMarketplaceImage,
   getFiles,
   migrate,
   deletePhotos,
@@ -15,6 +16,7 @@ const authMiddleware = require('../middlewares/auth.middleware');
 // ROUTES
 // ========================
 router.post('/uploads', uploadFiles);
+router.post('/marketplace-cover', authMiddleware, uploadMarketplaceImage);
 router.get('/files', getFiles);
 router.post('/migrate', migrate);
 router.post("/deletePhotos",authMiddleware,deletePhotos);
