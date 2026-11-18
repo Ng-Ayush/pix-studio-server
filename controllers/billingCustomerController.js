@@ -45,6 +45,8 @@ exports.getAllCustomers = async (req, res) => {
           created_at: row.created_at,
           updated_at: row.updated_at,
           total: 0,
+          total_sale: 0,
+          total_estimate: 0,
           balance_left: 0,
           invoice_type: row.invoice_type
         });
@@ -53,8 +55,17 @@ exports.getAllCustomers = async (req, res) => {
       // If this row has invoice data, accumulate totals
       if (row.total !== null && row.balance_left !== null) {
         const customer = customersMap.get(customerId);
-        customer.total += Number(row.total);
-        customer.balance_left += Number(row.balance_left);
+
+        const invoiceTotal = Number(row.total);
+        const balance = Number(row.balance_left);
+        customer.total += invoiceTotal;
+        
+        if (row.invoice_type === 'sale') {
+          customer.total_sale += invoiceTotal;
+        } else if (row.invoice_type === 'estimate') {
+          customer.total_estimate += invoiceTotal;
+        }
+        customer.balance_left += balance;
       }
     }
 
