@@ -13,7 +13,7 @@ const sharp = require('sharp');
 
 const s3 = new S3Client({
   region: "us-east-1",
-  endpoint: "http://tn3.mieuxcloud.com:9000",
+  endpoint: "https://tn3.mieuxcloud.com:9000",
   forcePathStyle: true,
   credentials: {
     accessKeyId: '8MHul1CuBvoRj8D3dzhS',
