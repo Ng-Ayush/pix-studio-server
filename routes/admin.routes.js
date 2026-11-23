@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
+const superAdminAuth = require('../middlewares/super-admin-auth.middleware');
+
 router.post('/login', adminController.login);
 router.get('/getAllUsers',authMiddleware,adminController.getAllUsers);
 router.post('/createUsers',authMiddleware, adminController.createUsers);
@@ -17,6 +19,12 @@ router.get("/getAllPromocodes",authMiddleware, adminController.getAllPromocodes)
 router.put("/updatePromocode/:id",authMiddleware, adminController.updatePromocode);
 router.delete("/deletePromocode/:id",authMiddleware, adminController.deletePromocode);
 router.put("/togglePromocodeStatus",authMiddleware, adminController.togglePromocodeStatus);
+
+router.put("/toggleGlobalInsta",authMiddleware, adminController.toggleGlobalInsta);  //in future
+
+router.get('/help-videos', authMiddleware, adminController.getHelpVideos);
+router.post('/help-videos', superAdminAuth, adminController.createHelpVideo);
+router.delete('/help-videos/:id', superAdminAuth, adminController.deleteHelpVideo);
 
 
 

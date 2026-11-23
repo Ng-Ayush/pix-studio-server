@@ -54,11 +54,30 @@ exports.getAllListing = async (req, res) => {
     }
 };
 
+exports.searchCities = async (req, res) => {
+    try {
+        const query = typeof req.query.query === 'string' ? req.query.query.trim().toLowerCase() : '';
+        if (query.length < 2) {
+            return res.status(400).send({ error: 'At least two characters are required', status: 400 });
+        }
+
+        const [rows] = await pool.execute(
+            'SELECT DISTINCT name, state FROM city_master WHERE LOWER(name) LIKE ? ORDER BY name LIMIT 20',
+            [`%${query}%`]
+        );
+        return res.send({ message: 'Cities fetched successfully', data: rows.map(row => `${row.name}, ${row.state}`), status: 200 });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ error: 'Failed to search cities', message: getErrorMessage(err), status: 500 });
+    }
+};
+
 exports.create = async (req, res) => {
     try {
         const { listing_type, phone_number = null, city = null, title, price = null, duration = null, cover_image_url = null, description } = req.body;
-        if (typeof listing_type !== 'string' || !listing_type.trim() || typeof title !== 'string' || !title.trim() || typeof description !== 'string' || !description.trim()) {
-            return res.status(400).send({ error: 'listing_type, title, and description are required', status: 400 });
+        if (typeof listing_type !== 'string' || !listing_type.trim() || typeof title !== 'string' || !title.trim()
+            || typeof description !== 'string' || !description.trim() || typeof city !== 'string' || !city.trim()) {
+            return res.status(400).send({ error: 'listing_type, title, description, and city are required', status: 400 });
         }
         if (!isValidPrice(price)) {
             return res.status(400).send({ error: 'price must be a non-negative number or null', status: 400 });
@@ -77,7 +96,7 @@ exports.create = async (req, res) => {
             `INSERT INTO marketplace_listings
                 (user_id, listing_type, phone_number, city, title, price, duration, cover_image_url, description, image_urls, video_urls)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [req.user.id, listing_type.trim(), phone_number, city, title.trim(), price, duration, cover_image_url, description.trim(), imageUrls, videoUrls]
+            [req.user.id, listing_type.trim(), phone_number, city.trim(), title.trim(), price, duration, cover_image_url, description.trim(), imageUrls, videoUrls]
         );
         const [rows] = await pool.execute(
             'SELECT * FROM marketplace_listings WHERE id = ? AND user_id = ?',
@@ -138,11 +157,17 @@ exports.editListingByUserId = async (req, res) => {
         if (price && !isValidPrice(price[1])) {
             return res.status(400).send({ error: 'price must be a non-negative number or null', status: 400 });
         }
+        const city = updates.find(([field]) => field === 'city');
+        if (city && (typeof city[1] !== 'string' || !city[1].trim())) {
+            return res.status(400).send({ error: 'city must be a non-empty string', status: 400 });
+        }
 
         try {
             updates = updates.map(([field, value]) => [
                 field,
-                field === 'image_urls' || field === 'video_urls' ? serializeMediaUrls(value, field) : value
+                field === 'image_urls' || field === 'video_urls'
+                    ? serializeMediaUrls(value, field)
+                    : field === 'city' && typeof value === 'string' ? value.trim() : value
             ]);
         } catch (validationError) {
             return res.status(400).send({ error: validationError.message, status: 400 });

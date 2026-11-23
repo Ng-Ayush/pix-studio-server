@@ -201,7 +201,68 @@ exports.deletePromocode = async (req, res) => {
     }
 };
 
+exports.getHelpVideos = async (req, res) => {
+    try {
+        const [videos] = await pool.execute(
+            'SELECT id, title, video_url, created_at FROM help_videos ORDER BY id DESC'
+        );
+        return res.send({ message: 'Help videos fetched successfully', data: videos, status: 200 });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ error: 'Failed to fetch help videos', message: err.message, status: 500 });
+    }
+};
 
+exports.createHelpVideo = async (req, res) => {
+    try {
+        const title = typeof req.body.title === 'string' ? req.body.title.trim() : '';
+        const videoUrl = typeof req.body.video_url === 'string' ? req.body.video_url.trim() : '';
+        if (!title || title.length > 255 || !videoUrl || videoUrl.length > 2048) {
+            return res.status(400).send({ error: 'A title and valid video URL are required', status: 400 });
+        }
+
+        let parsedVideoUrl;
+        try {
+            parsedVideoUrl = new URL(videoUrl);
+        } catch {
+            return res.status(400).send({ error: 'A valid video URL is required', status: 400 });
+        }
+        if (!['http:', 'https:'].includes(parsedVideoUrl.protocol)) {
+            return res.status(400).send({ error: 'Video URL must use HTTP or HTTPS', status: 400 });
+        }
+
+        const [result] = await pool.execute(
+            'INSERT INTO help_videos (title, video_url) VALUES (?, ?)',
+            [title, videoUrl]
+        );
+        return res.status(201).send({
+            message: 'Help video added successfully',
+            data: { id: result.insertId, title, video_url: videoUrl },
+            status: 201
+        });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ error: 'Failed to add help video', message: err.message, status: 500 });
+    }
+};
+
+exports.deleteHelpVideo = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) {
+            return res.status(400).send({ error: 'A valid help video ID is required', status: 400 });
+        }
+
+        const [result] = await pool.execute('DELETE FROM help_videos WHERE id = ?', [id]);
+        if (!result.affectedRows) {
+            return res.status(404).send({ error: 'Help video not found', status: 404 });
+        }
+        return res.send({ message: 'Help video deleted successfully', status: 200 });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ error: 'Failed to delete help video', message: err.message, status: 500 });
+    }
+};
 
 // **** in future use ****
 exports.updatePromocode = async (req, res) => {
